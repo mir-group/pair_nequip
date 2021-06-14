@@ -25,6 +25,8 @@ fix		1 all nve
 
 timestep	0.001
 
+thermo_style custom step time temp pe etotal press spcpu cpuremain
+
 run 0
 write_dump all custom output.dump id type x y z fx fy fz
 

@@ -35,12 +35,22 @@
 #include <iostream>
 #include <string>
 #include <torch/script.h>
+#include <c10/cuda/CUDACachingAllocator.h>
+
 
 using namespace LAMMPS_NS;
 
 PairNEQUIP::PairNEQUIP(LAMMPS *lmp) : Pair(lmp) {
   restartinfo = 0;
   manybody_flag = 1;
+
+  if(torch::cuda::is_available()){
+    device = torch::kCUDA;
+  }
+  else {
+    device = torch::kCPU;
+  }
+  std::cout << "NEQUIP is using device " << device << "\n";
 }
 
 PairNEQUIP::~PairNEQUIP(){
@@ -122,7 +132,7 @@ void PairNEQUIP::coeff(int narg, char **arg) {
     {"r_max", ""},
     {"n_species", ""}
   };
-  model = torch::jit::load(std::string(arg[2]), torch::kCPU, metadata);
+  model = torch::jit::load(std::string(arg[2]), device, metadata);
 
   std::cout << "Information from model: " << metadata.size() << " key-value pairs\n";
   for( const auto& n : metadata ) {
@@ -273,19 +283,19 @@ void PairNEQUIP::compute(int eflag, int vflag){
   //std::cout << "Edge _cell_shifts: " << edge_cell_shifts_tensor << "\n";
 
   c10::Dict<std::string, torch::Tensor> input;
-  input.insert("pos", pos_tensor);
-  input.insert("edge_index", edges_tensor);
-  input.insert("edge_cell_shift", edge_cell_shifts_tensor);
-  input.insert("cell", cell_tensor);
-  input.insert("species_index", tag2type_tensor);
+  input.insert("pos", pos_tensor.to(device));
+  input.insert("edge_index", edges_tensor.to(device));
+  input.insert("edge_cell_shift", edge_cell_shifts_tensor.to(device));
+  input.insert("cell", cell_tensor.to(device));
+  input.insert("species_index", tag2type_tensor.to(device));
   std::vector<torch::IValue> input_vector(1, input);
 
   auto output = model.forward(input_vector).toGenericDict();
 
-  torch::Tensor forces_tensor = output.at("forces").toTensor();
+  torch::Tensor forces_tensor = output.at("forces").toTensor().cpu();
   auto forces = forces_tensor.accessor<float, 2>();
 
-  torch::Tensor total_energy_tensor = output.at("total_energy").toTensor();
+  torch::Tensor total_energy_tensor = output.at("total_energy").toTensor().cpu();
   std::cout << "Total energy: " << total_energy_tensor << "\n";
 
 
@@ -305,4 +315,11 @@ void PairNEQUIP::compute(int eflag, int vflag){
   // It may be better to first create tag2i as a separate loop, then set edges[edge_counter][:] = (i, tag2i[jtag]).
   // Then use forces(i,0) instead of forces(itag,0).
   // Or just sort the edges somehow.
+
+  /*
+  if(device.is_cuda()){
+    //torch::cuda::empty_cache();
+    c10::cuda::CUDACachingAllocator::emptyCache();
+  }
+  */
 }
