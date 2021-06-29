@@ -147,6 +147,8 @@ void PairNEQUIP::coeff(int narg, char **arg) {
 
 // Force and energy computation
 void PairNEQUIP::compute(int eflag, int vflag){
+  ev_init(eflag, vflag);
+
   // Get info from lammps:
 
   // Atom positions, including ghost atoms
@@ -296,15 +298,26 @@ void PairNEQUIP::compute(int eflag, int vflag){
   auto forces = forces_tensor.accessor<float, 2>();
 
   torch::Tensor total_energy_tensor = output.at("total_energy").toTensor().cpu();
-  std::cout << "Total energy: " << total_energy_tensor << "\n";
 
+  // store the total energy where LAMMPS wants it
+  eng_vdwl = total_energy_tensor.data_ptr<float>()[0];
 
-  // Write forces (0-based tags here)
+  torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
+  auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
+  float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
+
+  //std::cout << "atomic energy sum: " << atomic_energy_sum << std::endl;
+  //std::cout << "Total energy: " << total_energy_tensor << "\n";
+  //std::cout << "atomic energy shape: " << atomic_energy_tensor.sizes()[0] << "," << atomic_energy_tensor.sizes()[1] << std::endl;
+  //std::cout << "atomic energies: " << atomic_energy_tensor << std::endl;
+
+  // Write forces and per-atom energies (0-based tags here)
   for(int itag = 0; itag < inum; itag++){
     int i = tag2i[itag];
     f[i][0] = forces[itag][0];
     f[i][1] = forces[itag][1];
     f[i][2] = forces[itag][2];
+    if (evflag) eatom[i] = atomic_energies[itag][0];
     //printf("%d %d %g %g %g %g %g %g\n", i, type[i], pos[itag][0], pos[itag][1], pos[itag][2], f[i][0], f[i][1], f[i][2]);
   }
 
