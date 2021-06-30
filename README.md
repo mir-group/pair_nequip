@@ -13,19 +13,19 @@ where `deployed.pth` is the filename of your trained model.
 ## Building LAMMPS with this pair style
 
 ### Download LAMMPS
-```
+```bash
 git clone git@github.com:lammps/lammps
 ```
 or your preferred method.
 
 ### Download this repository
-```
+```bash
 git clone git@github.com:mir-group/pair_nequip
 ```
 
 ### Patch LAMMPS
 First copy the source files of the pair style:
-```
+```bash
 cp /path/to/pair_nequip/pair_nequip.* /path/to/lammps/src/
 ```
 Then make the following modifications to `lammps/cmake/CMakeLists.txt`:
