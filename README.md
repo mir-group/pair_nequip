@@ -12,18 +12,18 @@ where `deployed.pth` is the filename of your trained model.
 
 ## Building LAMMPS with this pair style
 
-1. Download LAMMPS
+### Download LAMMPS
 ```
 git clone git@github.com:lammps/lammps
 ```
 or your preferred method.
 
-2. Download this repository
+### Download this repository
 ```
 git clone git@github.com:mir-group/pair_nequip
 ```
 
-3. Patch LAMMPS
+### Patch LAMMPS
 First copy the source files of the pair style:
 ```
 cp /path/to/pair_nequip/pair_nequip.* /path/to/lammps/src/
@@ -37,7 +37,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 target_link_libraries(lammps PUBLIC "${TORCH_LIBRARIES}")
 ```
 
-4. Configure LAMMPS
+### Configure LAMMPS
 If you have PyTorch installed:
 ```
 cd lammps
@@ -54,7 +54,7 @@ cmake ../cmake -DCMAKE_PREFIX_PATH=/path/to/libtorch
 ```
 CMake will look for MKL and, optionally, CUDA and cuDNN and take care of everything. Pay attention to warnings and error messages.
 
-5. Build LAMMPS
+### Build LAMMPS
 ```
 make -j$(nproc)
 ```
