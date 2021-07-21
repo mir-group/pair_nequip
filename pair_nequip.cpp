@@ -317,11 +317,10 @@ void PairNEQUIP::compute(int eflag, int vflag){
     f[i][0] = forces[itag][0];
     f[i][1] = forces[itag][1];
     f[i][2] = forces[itag][2];
-    if (evflag) eatom[i] = atomic_energies[itag][0];
+    if (eflag_atom) eatom[i] = atomic_energies[itag][0];
     //printf("%d %d %g %g %g %g %g %g\n", i, type[i], pos[itag][0], pos[itag][1], pos[itag][2], f[i][0], f[i][1], f[i][2]);
   }
 
-  // TODO: Set evdwl somehow
   // TODO: Virial stuff? (If there even is a pairwise force concept here)
 
   // TODO: Performance: Depending on how the graph network works, using tags for edges may lead to shitty memory access patterns and performance.
