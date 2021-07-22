@@ -2,6 +2,8 @@
 
 This pair style allows you to use NEQUIP models in LAMMPS simulations.
 
+*Note: MPI is not supported due to the message-passing nature of the network.*
+
 ## Usage in LAMMPS
 
 ```
