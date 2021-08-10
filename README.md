@@ -1,6 +1,6 @@
-# LAMMPS pair style for NEQUIP
+# LAMMPS pair style for NequIP
 
-This pair style allows you to use NEQUIP models in LAMMPS simulations.
+This pair style allows you to use NequIP models in LAMMPS simulations.
 
 *Note: MPI is not supported due to the message-passing nature of the network.*
 
@@ -16,9 +16,10 @@ where `deployed.pth` is the filename of your trained model.
 
 ### Download LAMMPS
 ```bash
-git clone git@github.com:lammps/lammps
+git clone --depth 1 git@github.com:lammps/lammps
 ```
 or your preferred method.
+(`--depth 1` prevents the entire history of the LAMMPS repository from being downloaded.)
 
 ### Download this repository
 ```bash
@@ -26,9 +27,17 @@ git clone git@github.com:mir-group/pair_nequip
 ```
 
 ### Patch LAMMPS
+#### Automatically
+From the `pair_nequip` directory, run:
+```bash
+./patch_lammps.sh /path/to/lammps/
+```
+
+#### Manually
 First copy the source files of the pair style:
 ```bash
-cp /path/to/pair_nequip/pair_nequip.* /path/to/lammps/src/
+cp /path/to/pair_nequip/*.cpp /path/to/lammps/src/
+cp /path/to/pair_nequip/*.h /path/to/lammps/src/
 ```
 Then make the following modifications to `lammps/cmake/CMakeLists.txt`:
 - Change `set(CMAKE_CXX_STANDARD 11)` to `set(CMAKE_CXX_STANDARD 14)`
@@ -54,7 +63,9 @@ mkdir build
 cd build
 cmake ../cmake -DCMAKE_PREFIX_PATH=/path/to/libtorch
 ```
-CMake will look for MKL and, optionally, CUDA and cuDNN. Pay attention to warnings and error messages.
+CMake will look for MKL and, optionally, CUDA and cuDNN. You may have to explicitly provide the path for your CUDA installation (e.g. `-DCUDA_TOOLKIT_ROOT_DIR=/usr/lib/cuda/`) and your MKL installation (e.g. `-DMKL_INCLUDE_DIR=/usr/include/`).
+
+Pay attention to warnings and error messages.
 
 ### Build LAMMPS
 ```bash
