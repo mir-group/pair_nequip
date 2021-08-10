@@ -65,6 +65,8 @@ cmake ../cmake -DCMAKE_PREFIX_PATH=/path/to/libtorch
 ```
 CMake will look for MKL and, optionally, CUDA and cuDNN. You may have to explicitly provide the path for your CUDA installation (e.g. `-DCUDA_TOOLKIT_ROOT_DIR=/usr/lib/cuda/`) and your MKL installation (e.g. `-DMKL_INCLUDE_DIR=/usr/include/`).
 
+Note that the CUDA that comes with PyTorch when installed with `conda` (the `cudatoolkit` package) may not be sufficient (see [here](https://github.com/pytorch/extension-cpp/issues/26), for example) and you may have to install full CUDA seperately.
+
 Pay attention to warnings and error messages.
 
 ### Build LAMMPS
