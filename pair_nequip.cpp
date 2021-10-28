@@ -112,8 +112,7 @@ void PairNEQUIP::coeff(int narg, char **arg) {
   int ntypes = atom->ntypes;
 
   // Should be exactly 3 arguments following "pair_coeff" in the input file.
-  int n3 = 3 + ntypes;
-  if (narg != n3)
+  if (narg != (3+ntypes))
     error->all(FLERR, "Incorrect args for pair coefficients");
 
   // Ensure I,J args are "* *".
@@ -159,7 +158,7 @@ void PairNEQUIP::coeff(int narg, char **arg) {
 
   // match the type names in the pair_coeff to the metadata 
   // to construct a type mapper from LAMMPS type to NequIP atom_types
-  n_species = std::stod(metadata["n_species"]);
+  int n_species = std::stod(metadata["n_species"]);
   std::stringstream ss;
   ss << metadata["type_names"];
   for (int i = 0; i < n_species; i++){
@@ -330,11 +329,15 @@ void PairNEQUIP::compute(int eflag, int vflag){
   auto new_edges = edges_tensor.accessor<long, 2>();
   auto new_edge_cell_shifts = edge_cell_shifts_tensor.accessor<float, 2>();
   for (int i=0; i<edge_counter; i++){
-      new_edges[0][i] = edges[i*2];
-      new_edges[1][i] = edges[i*2+1];
-      new_edge_cell_shifts[i][0] = edge_cell_shifts[i*3];
-      new_edge_cell_shifts[i][1] = edge_cell_shifts[i*3+1];
-      new_edge_cell_shifts[i][2] = edge_cell_shifts[i*3+2];
+
+      long *e=&edges[i*2];
+      new_edges[0][i] = e[0];
+      new_edges[1][i] = e[1];
+
+      float *ev = &edge_cell_shifts[i*3];
+      new_edge_cell_shifts[i][0] = ev[0];
+      new_edge_cell_shifts[i][1] = ev[1];
+      new_edge_cell_shifts[i][2] = ev[2];
   }
       
 

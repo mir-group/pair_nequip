@@ -38,12 +38,10 @@ class PairNEQUIP : public Pair {
   void allocate();
 
   double cutoff;
-  int n_species;
   torch::jit::Module model;
   torch::Device device = torch::kCPU;
 
  protected:
-  char ** elements;
   int * type_mapper;
 
 };
