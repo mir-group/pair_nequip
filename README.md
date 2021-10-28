@@ -1,4 +1,4 @@
-# LAMMPS pair style for NequIP
+# LAMMPS pair style for NequIP 0.4.0
 
 This pair style allows you to use NequIP models in LAMMPS simulations.
 
