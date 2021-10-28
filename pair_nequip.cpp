@@ -58,6 +58,7 @@ PairNEQUIP::~PairNEQUIP(){
   if (allocated) {
     memory->destroy(setflag);
     memory->destroy(cutsq);
+    memory->destroy(type_mapper);
   }
 }
 
@@ -124,9 +125,9 @@ void PairNEQUIP::coeff(int narg, char **arg) {
       setflag[i][j] = 0;
 
   // Parse the definition of each atom type
-  elements = new char*[ntypes+1];
+  char **elements = new char*[ntypes+1];
   for (int i = 1; i <= ntypes; i++){
-      elements[i] = new char[strlen(arg[i+2])+1];
+      elements[i] = new char [strlen(arg[i+2])+1];
       strcpy(elements[i], arg[i+2]);
       if (screen) fprintf(screen, "NequIP Coeff: type %d is element %s\n", i, elements[i]);
   }
@@ -175,6 +176,12 @@ void PairNEQUIP::coeff(int narg, char **arg) {
         if ((type_mapper[i] >= 0) && (type_mapper[j] >= 0))
             setflag[i][j] = 1;
 
+  if (elements){
+      for (int i=1; i<ntypes; i++)
+          if (elements[i]) delete [] elements[i];
+      delete [] elements;
+  }
+
 }
 
 // Force and energy computation
@@ -197,7 +204,8 @@ void PairNEQUIP::compute(int eflag, int vflag){
   // Whether Newton is on (i.e. reverse "communication" of forces on ghost atoms).
   int newton_pair = force->newton_pair;
   // Should probably be off.
-  assert(newton_pair==0);
+  if (newton_pair==1)
+    error->all(FLERR,"Pair style NEQUIP requires 'newton off'");
 
   // Number of local/real atoms
   int inum = list->inum;
@@ -222,8 +230,8 @@ void PairNEQUIP::compute(int eflag, int vflag){
   torch::Tensor cell_tensor = torch::zeros({3,3});
 
   auto pos = pos_tensor.accessor<float, 2>();
-  long * edges = new long[2*nedges];
-  float * edge_cell_shifts = new float[3*nedges];
+  long edges[2*nedges];
+  float edge_cell_shifts[3*nedges];
   auto tag2type = tag2type_tensor.accessor<long, 1>();
   auto periodic_shift = periodic_shift_tensor.accessor<float, 1>();
   auto cell = cell_tensor.accessor<float,2>();
@@ -316,6 +324,7 @@ void PairNEQUIP::compute(int eflag, int vflag){
   //std::cout << "Edges: " << edges_tensor << "\n";
   //std::cout << "Edge _cell_shifts: " << edge_cell_shifts_tensor << "\n";
   
+  // shorten the list before sending to nequip
   torch::Tensor edges_tensor = torch::zeros({2,edge_counter}, torch::TensorOptions().dtype(torch::kInt64));
   torch::Tensor edge_cell_shifts_tensor = torch::zeros({edge_counter,3});
   auto new_edges = edges_tensor.accessor<long, 2>();
