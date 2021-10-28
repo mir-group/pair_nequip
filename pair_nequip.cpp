@@ -33,6 +33,7 @@
 #include <numeric>
 #include <cassert>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <torch/script.h>
 #include <c10/cuda/CUDACachingAllocator.h>
@@ -92,6 +93,8 @@ void PairNEQUIP::allocate()
 
   memory->create(setflag,n+1,n+1,"pair:setflag");
   memory->create(cutsq,n+1,n+1,"pair:cutsq");
+  memory->create(type_mapper, n+1, "pair:type_mapper");
+
 }
 
 void PairNEQUIP::settings(int narg, char ** /*arg*/) {
@@ -101,28 +104,37 @@ void PairNEQUIP::settings(int narg, char ** /*arg*/) {
 }
 
 void PairNEQUIP::coeff(int narg, char **arg) {
+
   if (!allocated)
     allocate();
 
+  int ntypes = atom->ntypes;
+
   // Should be exactly 3 arguments following "pair_coeff" in the input file.
-  if (narg != 3)
+  int n3 = 3 + ntypes;
+  if (narg != n3)
     error->all(FLERR, "Incorrect args for pair coefficients");
 
   // Ensure I,J args are "* *".
   if (strcmp(arg[0], "*") != 0 || strcmp(arg[1], "*") != 0)
     error->all(FLERR, "Incorrect args for pair coefficients");
 
-  int n = atom->ntypes;
-  for (int i = 1; i <= n; i++)
-    for (int j = i; j <= n; j++)
+  for (int i = 1; i <= ntypes; i++)
+    for (int j = i; j <= ntypes; j++)
       setflag[i][j] = 0;
 
-  // set setflag i,j for type pairs where both are mapped to elements
+  // Parse the definition of each atom type
+  elements = new char*[ntypes+1];
+  for (int i = 1; i <= ntypes; i++){
+      elements[i] = new char[strlen(arg[i+2])+1];
+      strcpy(elements[i], arg[i+2]);
+      if (screen) fprintf(screen, "NequIP Coeff: type %d is element %s\n", i, elements[i]);
+  }
 
-  int count = 0;
-  for (int i = 1; i <= n; i++)
-    for (int j = i; j <= n; j++)
-        setflag[i][j] = 1;
+  // Initiate type mapper
+  for (int i = 1; i<= ntypes; i++){
+      type_mapper[i] = -1;
+  }
 
   std::cout << "Loading model from " << arg[2] << "\n";
 
@@ -130,7 +142,10 @@ void PairNEQUIP::coeff(int narg, char **arg) {
     {"config", ""},
     {"nequip_version", ""},
     {"r_max", ""},
-    {"n_species", ""}
+    {"n_species", ""},
+    {"type_names", ""},
+    {"_jit_bailout_depth", ""},
+    {"allow_tf32", ""}
   };
   model = torch::jit::load(std::string(arg[2]), device, metadata);
 
@@ -141,8 +156,25 @@ void PairNEQUIP::coeff(int narg, char **arg) {
 
   cutoff = std::stod(metadata["r_max"]);
 
-  // TODO: Make remaining arguments species-mapping
-  // See SW.
+  // match the type names in the pair_coeff to the metadata 
+  // to construct a type mapper from LAMMPS type to NequIP atom_types
+  n_species = std::stod(metadata["n_species"]);
+  std::stringstream ss;
+  ss << metadata["type_names"];
+  for (int i = 0; i < n_species; i++){
+      char ele[100];
+      ss >> ele;
+      for (int itype = 1; itype <= ntypes; itype++)
+          if (strcmp(elements[itype], ele) == 0)
+              type_mapper[itype] = i;
+  }
+
+  // set setflag i,j for type pairs where both are mapped to elements
+  for (int i = 1; i <= ntypes; i++)
+    for (int j = i; j <= ntypes; j++)
+        if ((type_mapper[i] >= 0) && (type_mapper[j] >= 0))
+            setflag[i][j] = 1;
+
 }
 
 // Force and energy computation
@@ -163,8 +195,9 @@ void PairNEQUIP::compute(int eflag, int vflag){
   // Number of local/real atoms
   int nlocal = atom->nlocal;
   // Whether Newton is on (i.e. reverse "communication" of forces on ghost atoms).
-  // Should probably be off.
   int newton_pair = force->newton_pair;
+  // Should probably be off.
+  assert(newton_pair==0);
 
   // Number of local/real atoms
   int inum = list->inum;
@@ -184,15 +217,13 @@ void PairNEQUIP::compute(int eflag, int vflag){
   int nedges = std::accumulate(numneigh, numneigh+ntotal, 0);
 
   torch::Tensor pos_tensor = torch::zeros({nlocal, 3});
-  torch::Tensor edges_tensor = torch::zeros({2,nedges}, torch::TensorOptions().dtype(torch::kInt64));
-  torch::Tensor edge_cell_shifts_tensor = torch::zeros({nedges,3});
   torch::Tensor tag2type_tensor = torch::zeros({nlocal}, torch::TensorOptions().dtype(torch::kInt64));
   torch::Tensor periodic_shift_tensor = torch::zeros({3});
   torch::Tensor cell_tensor = torch::zeros({3,3});
 
   auto pos = pos_tensor.accessor<float, 2>();
-  auto edges = edges_tensor.accessor<long, 2>();
-  auto edge_cell_shifts = edge_cell_shifts_tensor.accessor<float, 2>();
+  long * edges = new long[2*nedges];
+  float * edge_cell_shifts = new float[3*nedges];
   auto tag2type = tag2type_tensor.accessor<long, 1>();
   auto periodic_shift = periodic_shift_tensor.accessor<float, 1>();
   auto cell = cell_tensor.accessor<float,2>();
@@ -208,7 +239,8 @@ void PairNEQUIP::compute(int eflag, int vflag){
 
     // Inverse mapping from tag to x/f atom index
     tag2i[itag-1] = i; // tag is probably 1-based
-    tag2type[itag-1] = itype-1;
+    tag2type[itag-1] = type_mapper[itype];
+    std::cout<<"ii "<<ii<<" itag " << type_mapper[itype] << std::endl;
     pos[itag-1][0] = x[i][0];
     pos[itag-1][1] = x[i][1];
     pos[itag-1][2] = x[i][2];
@@ -263,33 +295,47 @@ void PairNEQUIP::compute(int eflag, int vflag){
       double dz = x[i][2] - x[j][2];
 
       double rsq = dx*dx + dy*dy + dz*dz;
-      assert(rsq < cutoff*cutoff);
+      if (rsq < cutoff*cutoff){
+          torch::Tensor cell_shift_tensor = cell_inv.matmul(periodic_shift_tensor);
+          auto cell_shift = cell_shift_tensor.accessor<float, 1>();
+          float * e_vec = &edge_cell_shifts[edge_counter*3];
+          e_vec[0] = std::round(cell_shift[0]);
+          e_vec[1] = std::round(cell_shift[1]);
+          e_vec[2] = std::round(cell_shift[2]);
+          //std::cout << "cell shift: " << cell_shift_tensor << "\n";
 
-      torch::Tensor cell_shift_tensor = cell_inv.matmul(periodic_shift_tensor);
-      auto cell_shift = cell_shift_tensor.accessor<float, 1>();
-      edge_cell_shifts[edge_counter][0] = std::round(cell_shift[0]);
-      edge_cell_shifts[edge_counter][1] = std::round(cell_shift[1]);
-      edge_cell_shifts[edge_counter][2] = std::round(cell_shift[2]);
-      //std::cout << "cell shift: " << cell_shift_tensor << "\n";
+          // TODO: double check order
+          edges[edge_counter*2] = itag - 1; // tag is probably 1-based
+          edges[edge_counter*2+1] = jtag - 1; // tag is probably 1-based
 
-      // TODO: double check order
-      edges[0][edge_counter] = itag - 1; // tag is probably 1-based
-      edges[1][edge_counter] = jtag - 1; // tag is probably 1-based
-
-      edge_counter++;
+          edge_counter++;
+      }
     }
   }
 
   //std::cout << "tag2type: " << tag2type_tensor << "\n";
   //std::cout << "Edges: " << edges_tensor << "\n";
   //std::cout << "Edge _cell_shifts: " << edge_cell_shifts_tensor << "\n";
+  
+  torch::Tensor edges_tensor = torch::zeros({2,edge_counter}, torch::TensorOptions().dtype(torch::kInt64));
+  torch::Tensor edge_cell_shifts_tensor = torch::zeros({edge_counter,3});
+  auto new_edges = edges_tensor.accessor<long, 2>();
+  auto new_edge_cell_shifts = edge_cell_shifts_tensor.accessor<float, 2>();
+  for (int i=0; i<edge_counter; i++){
+      new_edges[0][i] = edges[i*2];
+      new_edges[1][i] = edges[i*2+1];
+      new_edge_cell_shifts[i][0] = edge_cell_shifts[i*3];
+      new_edge_cell_shifts[i][1] = edge_cell_shifts[i*3+1];
+      new_edge_cell_shifts[i][2] = edge_cell_shifts[i*3+2];
+  }
+      
 
   c10::Dict<std::string, torch::Tensor> input;
   input.insert("pos", pos_tensor.to(device));
   input.insert("edge_index", edges_tensor.to(device));
   input.insert("edge_cell_shift", edge_cell_shifts_tensor.to(device));
   input.insert("cell", cell_tensor.to(device));
-  input.insert("species_index", tag2type_tensor.to(device));
+  input.insert("atom_types", tag2type_tensor.to(device));
   std::vector<torch::IValue> input_vector(1, input);
 
   auto output = model.forward(input_vector).toGenericDict();
