@@ -240,7 +240,6 @@ void PairNEQUIP::compute(int eflag, int vflag){
     // Inverse mapping from tag to x/f atom index
     tag2i[itag-1] = i; // tag is probably 1-based
     tag2type[itag-1] = type_mapper[itype];
-    std::cout<<"ii "<<ii<<" itag " << type_mapper[itype] << std::endl;
     pos[itag-1][0] = x[i][0];
     pos[itag-1][1] = x[i][1];
     pos[itag-1][2] = x[i][2];
