@@ -13,9 +13,12 @@ This pair style allows you to use NequIP models in LAMMPS simulations.
 
 ```
 pair_style	nequip
-pair_coeff	* * deployed.pth
+pair_coeff	* * deployed.pth <element 1> <element 2> ...
 ```
 where `deployed.pth` is the filename of your trained model.
+
+The number of elements after the model path should be exactly the same as the number of atoms in the lammps configuration (not the NequIP model!). 
+The element string should be consistent with the keys specified in the NequIP training yaml, such as the keys in `chemical_symbol_to_type` or the values in `type_names`.
 
 ## Building LAMMPS with this pair style
 
