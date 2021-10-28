@@ -1,8 +1,13 @@
-# LAMMPS pair style for NequIP 0.4.0
+# LAMMPS pair style for NequIP
 
 This pair style allows you to use NequIP models in LAMMPS simulations.
 
 *Note: MPI is not supported due to the message-passing nature of the network.*
+
+## Pre-requisites
+
+* NequIP >= 0.4.0
+* Pytorch or LibTorch >= 1.9.0
 
 ## Usage in LAMMPS
 
