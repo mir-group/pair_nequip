@@ -36,6 +36,7 @@
 #include <sstream>
 #include <string>
 #include <torch/script.h>
+#include <torch/csrc/jit/runtime/graph_executor.h>
 #include <c10/cuda/CUDACachingAllocator.h>
 
 
@@ -153,6 +154,29 @@ void PairNEQUIP::coeff(int narg, char **arg) {
   if (metadata["nequip_version"].empty()) {
     error->all(FLERR, "The indicated TorchScript file does not appear to be a deployed NequIP model; did you forget to run `nequip-deploy`?");
   }
+
+  // Set JIT bailout to avoid long recompilations for many steps
+  size_t jit_bailout_depth;
+  if (metadata["_jit_bailout_depth"].empty()) {
+    // This is the default used in the Python code
+    jit_bailout_depth = 2;
+  } else {
+    jit_bailout_depth = std::stoi(metadata["_jit_bailout_depth"]);
+  }
+  torch::jit::getBailoutDepth() = jit_bailout_depth;
+
+  // Set whether to allow TF32:
+  bool allow_tf32;
+  if (metadata["allow_tf32"].empty()) {
+    // Better safe then sorry
+    allow_tf32 = false;
+  } else {
+    // It gets saved as an int 0/1
+    allow_tf32 = std::stoi(metadata["allow_tf32"]);
+  }
+  // See https://pytorch.org/docs/stable/notes/cuda.html
+  at::globalContext().setAllowTF32CuBLAS(allow_tf32);
+  at::globalContext().setAllowTF32CuDNN(allow_tf32);
 
   std::cout << "Information from model: " << metadata.size() << " key-value pairs\n";
   for( const auto& n : metadata ) {
