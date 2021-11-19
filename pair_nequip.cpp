@@ -149,6 +149,11 @@ void PairNEQUIP::coeff(int narg, char **arg) {
   };
   model = torch::jit::load(std::string(arg[2]), device, metadata);
 
+  // Check if model is a NequIP model
+  if (metadata["nequip_version"].empty()) {
+    error->all(FLERR, "The indicated TorchScript file does not appear to be a deployed NequIP model; did you forget to run `nequip-deploy`?");
+  }
+
   std::cout << "Information from model: " << metadata.size() << " key-value pairs\n";
   for( const auto& n : metadata ) {
     std::cout << "Key:[" << n.first << "] Value:[" << n.second << "]\n";
