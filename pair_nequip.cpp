@@ -211,7 +211,7 @@ void PairNEQUIP::coeff(int narg, char **arg) {
   // Set whether to allow TF32:
   bool allow_tf32;
   if (metadata["allow_tf32"].empty()) {
-    // Better safe then sorry
+    // Better safe than sorry
     allow_tf32 = false;
   } else {
     // It gets saved as an int 0/1
