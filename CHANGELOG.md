@@ -14,5 +14,6 @@ Most recent change on the bottom.
 ### Fixed
 - Edges outside the cutoff but within the skin are no longer processed by the model
 - `allow_tf32` and `_jit_bailout_depth` are now respected
+- Hack to allow freezing on demand for PyTorch < 1.10
 
 ## [0.1.0]
