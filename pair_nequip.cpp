@@ -221,10 +221,10 @@ void PairNEQUIP::coeff(int narg, char **arg) {
   at::globalContext().setAllowTF32CuBLAS(allow_tf32);
   at::globalContext().setAllowTF32CuDNN(allow_tf32);
 
-  std::cout << "Information from model: " << metadata.size() << " key-value pairs\n";
-  for( const auto& n : metadata ) {
-    std::cout << "Key:[" << n.first << "] Value:[" << n.second << "]\n";
-  }
+  // std::cout << "Information from model: " << metadata.size() << " key-value pairs\n";
+  // for( const auto& n : metadata ) {
+  //   std::cout << "Key:[" << n.first << "] Value:[" << n.second << "]\n";
+  // }
 
   cutoff = std::stod(metadata["r_max"]);
 
