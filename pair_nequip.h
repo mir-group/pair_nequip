@@ -41,6 +41,8 @@ class PairNEQUIP : public Pair {
   torch::jit::Module model;
   torch::Device device = torch::kCPU;
 
+ protected:
+  int * type_mapper;
 
 };
 

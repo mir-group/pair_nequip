@@ -4,13 +4,21 @@ This pair style allows you to use NequIP models in LAMMPS simulations.
 
 *Note: MPI is not supported due to the message-passing nature of the network.*
 
+## Pre-requisites
+
+* NequIP >= 0.4.0
+* Pytorch or LibTorch >= 1.9.0
+
 ## Usage in LAMMPS
 
 ```
 pair_style	nequip
-pair_coeff	* * deployed.pth
+pair_coeff	* * deployed.pth <type name 1> <type name 2> ...
 ```
 where `deployed.pth` is the filename of your trained model.
+
+The names after the model path indicate, in order, the names of the NequIP model's atom types to use for LAMMPS atom types 1, 2, and so on. The number of names given must be equal to the number of atom types in the lammps configuration (not the NequIP model!). 
+The element string should be consistent with the names specified in the NequIP training YAML in `chemical_symbol_to_type` or `type_names`.
 
 ## Building LAMMPS with this pair style
 
