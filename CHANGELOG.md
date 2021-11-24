@@ -10,6 +10,7 @@ Most recent change on the bottom.
 
 ### Changed
 - The mapping from LAMMPS to NequIP types is now explicitly provided
+- Don't print full config in LAMMPS log
 
 ### Fixed
 - Edges outside the cutoff but within the skin are no longer processed by the model
