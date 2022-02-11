@@ -38,7 +38,7 @@
 #include <torch/torch.h>
 #include <torch/script.h>
 #include <torch/csrc/jit/runtime/graph_executor.h>
-#include <c10/cuda/CUDACachingAllocator.h>
+//#include <c10/cuda/CUDACachingAllocator.h>
 
 
 // We have to do a backward compatability hack for <1.10
@@ -48,7 +48,7 @@
 // is wrong, and we have ro "reimplement" the function
 // to get around that...
 // it's broken in 1.8 and 1.9 so the < check is correct.
-// This appears to be fixed in 1.10. 
+// This appears to be fixed in 1.10.
 #if (TORCH_VERSION_MAJOR == 1 && TORCH_VERSION_MINOR < 10)
   #define DO_TORCH_FREEZE_HACK
   // For the hack, need more headers:
@@ -228,7 +228,7 @@ void PairNEQUIP::coeff(int narg, char **arg) {
 
   cutoff = std::stod(metadata["r_max"]);
 
-  // match the type names in the pair_coeff to the metadata 
+  // match the type names in the pair_coeff to the metadata
   // to construct a type mapper from LAMMPS type to NequIP atom_types
   int n_species = std::stod(metadata["n_species"]);
   std::stringstream ss;
@@ -394,7 +394,7 @@ void PairNEQUIP::compute(int eflag, int vflag){
   //std::cout << "tag2type: " << tag2type_tensor << "\n";
   //std::cout << "Edges: " << edges_tensor << "\n";
   //std::cout << "Edge _cell_shifts: " << edge_cell_shifts_tensor << "\n";
-  
+
   // shorten the list before sending to nequip
   torch::Tensor edges_tensor = torch::zeros({2,edge_counter}, torch::TensorOptions().dtype(torch::kInt64));
   torch::Tensor edge_cell_shifts_tensor = torch::zeros({edge_counter,3});
@@ -411,7 +411,7 @@ void PairNEQUIP::compute(int eflag, int vflag){
       new_edge_cell_shifts[i][1] = ev[1];
       new_edge_cell_shifts[i][2] = ev[2];
   }
-      
+
 
   c10::Dict<std::string, torch::Tensor> input;
   input.insert("pos", pos_tensor.to(device));
