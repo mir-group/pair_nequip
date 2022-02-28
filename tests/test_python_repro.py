@@ -122,13 +122,15 @@ def test_repro(deployed_model):
                 tmpdir + f"/structure{i}.data", structure, format="lammps-data"
             )
         # save out the LAMMPS input:
-        infile_path = TESTS_DIR / "test_repro.in"
+        infile_path = tmpdir / "test_repro.in"
         with open(infile_path, "w") as f:
             f.write(lmp_in)
         # environment variables
         env = dict(os.environ)
+        env["NEQUIP_DEBUG"] = "true"
 
         # run LAMMPS
+        # TODO: use NEQUIP_DEBUG env var to get input printouts and compare
         retcode = subprocess.run(
             [env.get("LAMMPS", "lmp"), "-in", infile_path],
             cwd=tmpdir,
