@@ -122,7 +122,7 @@ def test_repro(deployed_model):
                 tmpdir + f"/structure{i}.data", structure, format="lammps-data"
             )
         # save out the LAMMPS input:
-        infile_path = tmpdir / "test_repro.in"
+        infile_path = tmpdir + "/test_repro.in"
         with open(infile_path, "w") as f:
             f.write(lmp_in)
         # environment variables
