@@ -43,6 +43,7 @@ class PairNEQUIP : public Pair {
 
  protected:
   int * type_mapper;
+  int debug_mode = 0;
 
 };
 
