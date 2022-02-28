@@ -38,7 +38,7 @@
 #include <torch/torch.h>
 #include <torch/script.h>
 #include <torch/csrc/jit/runtime/graph_executor.h>
-#include <c10/cuda/CUDACachingAllocator.h>
+//#include <c10/cuda/CUDACachingAllocator.h>
 
 
 // We have to do a backward compatability hack for <1.10
@@ -48,7 +48,7 @@
 // is wrong, and we have ro "reimplement" the function
 // to get around that...
 // it's broken in 1.8 and 1.9 so the < check is correct.
-// This appears to be fixed in 1.10. 
+// This appears to be fixed in 1.10.
 #if (TORCH_VERSION_MAJOR == 1 && TORCH_VERSION_MINOR < 10)
   #define DO_TORCH_FREEZE_HACK
   // For the hack, need more headers:
@@ -72,6 +72,11 @@ PairNEQUIP::PairNEQUIP(LAMMPS *lmp) : Pair(lmp) {
     device = torch::kCPU;
   }
   std::cout << "NEQUIP is using device " << device << "\n";
+
+  if(const char* env_p = std::getenv("NEQUIP_DEBUG")){
+    std::cout << "PairNEQUIP is in DEBUG mode, since NEQUIP_DEBUG is in env\n";
+    debug_mode = 1;
+  }
 }
 
 PairNEQUIP::~PairNEQUIP(){
@@ -92,7 +97,7 @@ void PairNEQUIP::init_style(){
   neighbor->requests[irequest]->full = 1;
 
   // TODO: probably also
-  neighbor->requests[irequest]->ghost = 1;
+  neighbor->requests[irequest]->ghost = 0;
 
   // TODO: I think Newton should be off, enforce this.
   // The network should just directly compute the total forces
@@ -228,7 +233,7 @@ void PairNEQUIP::coeff(int narg, char **arg) {
 
   cutoff = std::stod(metadata["r_max"]);
 
-  // match the type names in the pair_coeff to the metadata 
+  // match the type names in the pair_coeff to the metadata
   // to construct a type mapper from LAMMPS type to NequIP atom_types
   int n_species = std::stod(metadata["n_species"]);
   std::stringstream ss;
@@ -350,7 +355,8 @@ void PairNEQUIP::compute(int eflag, int vflag){
   // ii follows the order of the neighbor lists,
   // i follows the order of x, f, etc.
   int edge_counter = 0;
-  for(int ii = 0; ii < ntotal; ii++){
+  if (debug_mode) printf("NEQUIP edges: i j xi[:] xj[:] cell_shift[:] rij\n");
+  for(int ii = 0; ii < nlocal; ii++){
     int i = ilist[ii];
     int itag = tag[i];
     int itype = type[i];
@@ -385,16 +391,18 @@ void PairNEQUIP::compute(int eflag, int vflag){
           // TODO: double check order
           edges[edge_counter*2] = itag - 1; // tag is probably 1-based
           edges[edge_counter*2+1] = jtag - 1; // tag is probably 1-based
-
           edge_counter++;
+
+          if (debug_mode){
+              printf("%d %d %g %g %g %g %g %g %g %g %g %g\n", itag-1, jtag-1,
+                pos[itag-1][0],pos[itag-1][1],pos[itag-1][2],pos[jtag-1][0],pos[jtag-1][1],pos[jtag-1][2],
+                e_vec[0],e_vec[1],e_vec[2],sqrt(rsq));
+          }
+
       }
     }
   }
 
-  //std::cout << "tag2type: " << tag2type_tensor << "\n";
-  //std::cout << "Edges: " << edges_tensor << "\n";
-  //std::cout << "Edge _cell_shifts: " << edge_cell_shifts_tensor << "\n";
-  
   // shorten the list before sending to nequip
   torch::Tensor edges_tensor = torch::zeros({2,edge_counter}, torch::TensorOptions().dtype(torch::kInt64));
   torch::Tensor edge_cell_shifts_tensor = torch::zeros({edge_counter,3});
@@ -411,7 +419,7 @@ void PairNEQUIP::compute(int eflag, int vflag){
       new_edge_cell_shifts[i][1] = ev[1];
       new_edge_cell_shifts[i][2] = ev[2];
   }
-      
+
 
   c10::Dict<std::string, torch::Tensor> input;
   input.insert("pos", pos_tensor.to(device));
@@ -420,6 +428,16 @@ void PairNEQUIP::compute(int eflag, int vflag){
   input.insert("cell", cell_tensor.to(device));
   input.insert("atom_types", tag2type_tensor.to(device));
   std::vector<torch::IValue> input_vector(1, input);
+
+  if(debug_mode){
+    std::cout << "NequIP model input:\n";
+    std::cout << "pos:\n" << pos_tensor << "\n";
+    std::cout << "edge_index:\n" << edges_tensor << "\n";
+    std::cout << "edge_cell_shifts:\n" << edge_cell_shifts_tensor << "\n";
+    std::cout << "cell:\n" << cell_tensor << "\n";
+    std::cout << "atom_types:\n" << tag2type_tensor << "\n";
+  }
+
 
   auto output = model.forward(input_vector).toGenericDict();
 
@@ -434,6 +452,13 @@ void PairNEQUIP::compute(int eflag, int vflag){
   torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
   auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
   float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
+
+  if(debug_mode){
+    std::cout << "NequIP model output:\n";
+    std::cout << "forces: " << forces_tensor << "\n";
+    std::cout << "total_energy: " << total_energy_tensor << "\n";
+    std::cout << "atomic_energy: " << atomic_energy_tensor << "\n";
+  }
 
   //std::cout << "atomic energy sum: " << atomic_energy_sum << std::endl;
   //std::cout << "Total energy: " << total_energy_tensor << "\n";
