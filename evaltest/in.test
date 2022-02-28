@@ -3,10 +3,18 @@ atom_style	atomic
 newton off
 thermo 1
 
-read_data structure.data
+#read_data structure.data
+lattice     diamond 5.431
+region      box block 0 $L 0 $L 0 $L
+create_box  1 box
+create_atoms    1 box
+displace_atoms all random 0.1 0.1 0.1 142857 units box
+mass            1 28
+write_data si_$L.data
 
-pair_style	zero 8.0
-pair_coeff * *
+
+pair_style	nequip
+pair_coeff * * potential.pth Si
 mass            1 28
 
 velocity	all create 1000.0 376847 loop geom
@@ -23,4 +31,4 @@ compute polarization all nequip best_deployed.pth polarization 3 Si
 thermo_style custom step time temp pe etotal press c_polarization[*]
 
 run 0
-
+write_dump all custom $L.dump id type x y z fx fy fz modify sort id

@@ -215,8 +215,8 @@ void ComputeNEQUIP::init(){
   int irequest = neighbor->request(this,instance_me);
   neighbor->requests[irequest]->pair = 0;
   neighbor->requests[irequest]->compute = 1;
-  neighbor->requests[irequest]->half = 1;
-  neighbor->requests[irequest]->full = 0;
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
   neighbor->requests[irequest]->occasional = 1;
 
   // TODO: probably also
@@ -370,24 +370,6 @@ void ComputeNEQUIP::compute_vector(){
           edges[edge_counter*2+1] = jtag - 1; // tag is probably 1-based
 
           edge_counter++;
-
-          periodic_shift[0] = x[i][0] - pos[itag-1][0];
-          periodic_shift[1] = x[i][1] - pos[itag-1][1];
-          periodic_shift[2] = x[i][2] - pos[itag-1][2];
-
-          cell_shift_tensor = cell_inv.matmul(periodic_shift_tensor);
-          cell_shift = cell_shift_tensor.accessor<float, 1>();
-          e_vec = &edge_cell_shifts[edge_counter*3];
-          e_vec[0] = std::round(cell_shift[0]);
-          e_vec[1] = std::round(cell_shift[1]);
-          e_vec[2] = std::round(cell_shift[2]);
-          //std::cout << "cell shift: " << cell_shift_tensor << "\n";
-
-          // TODO: double check order
-          edges[edge_counter*2] = jtag - 1; // tag is probably 1-based
-          edges[edge_counter*2+1] = itag - 1; // tag is probably 1-based
-
-          edge_counter++;
       }
     }
   }
@@ -425,7 +407,7 @@ void ComputeNEQUIP::compute_vector(){
   auto output = model.forward(input_vector).toGenericDict();
 
   torch::Tensor quantity_tensor = output.at(quantity).toTensor().cpu();
-  std::cout << quantity << ": " << quantity_tensor << std::endl;
+  //std::cout << quantity << ": " << quantity_tensor << std::endl;
   auto quantity = quantity_tensor.data_ptr<float>();
 
   for(int i = 0; i < size_vector; i++){
