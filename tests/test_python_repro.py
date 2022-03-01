@@ -124,13 +124,14 @@ def test_repro(deployed_model):
         thermo_style custom step time temp pe c_totalatomicenergy etotal press spcpu cpuremain
         """
     )
+    PRECISION_CONST: float = 1000.0
     for i in range(len(structures)):
         lmp_in += textwrap.dedent(
             f"""delete_atoms group all
             read_data structure{i}.data add merge
             run 0
-            print $(pe) file pe{i}.dat
-            print $(c_totalatomicenergy) file totalatomicenergy{i}.dat
+            print $({PRECISION_CONST} * pe) file pe{i}.dat
+            print $({PRECISION_CONST} * c_totalatomicenergy) file totalatomicenergy{i}.dat
             write_dump all custom output{i}.dump id type x y z fx fy fz c_atomicenergies
             """
         )
@@ -182,9 +183,12 @@ def test_repro(deployed_model):
             )
 
             # check system quantities
-            lammps_pe = float(Path(tmpdir + f"/pe{i}.dat").read_text())
-            lammps_totalatomicenergy = float(
-                Path(tmpdir + f"/totalatomicenergy{i}.dat").read_text()
+            lammps_pe = (
+                float(Path(tmpdir + f"/pe{i}.dat").read_text()) / PRECISION_CONST
+            )
+            lammps_totalatomicenergy = (
+                float(Path(tmpdir + f"/totalatomicenergy{i}.dat").read_text())
+                / PRECISION_CONST
             )
             assert np.allclose(lammps_pe, lammps_totalatomicenergy)
             assert np.allclose(
