@@ -74,6 +74,12 @@ def deployed_model(model_seed, dataset_options):
         d = dataset_from_config(config)
         # take some frames
         structures = [d[i].to_ase(type_mapper=d.type_mapper) for i in range(5)]
+        # give them cells even if nonperiodic
+        if not all(structures[0].pbc):
+            L = 100.0
+            for struct in structures:
+                struct.cell = L * np.eye(3)
+                struct.center()
         yield deployed_path, structures, config
 
 
@@ -81,19 +87,28 @@ def test_repro(deployed_model):
     structure: ase.Atoms
     deployed_model: str
     deployed_model, structures, config = deployed_model
-    num_types = len(config["chemical_species"])
+    num_types = len(config["chemical_symbols"])
 
     calc = NequIPCalculator.from_deployed_model(deployed_model, set_global_options=True)
 
     newline = "\n"
+    periodic = all(structures[0].pbc)
     lmp_in = textwrap.dedent(
         f"""units		metal
         atom_style	atomic
         newton off
         thermo 1
 
+        # get a box defined before pair_coeff
+        {'boundary p p p' if periodic else 'boundary s s s'}
+
+        read_data structure0.data
+
+
         pair_style	nequip
-        pair_coeff	* * {deployed_model}
+        # note that ASE outputs lammps types in alphabetical order of chemical symbols
+        # since we use chem symbols in this test, just put the same
+        pair_coeff	* * {deployed_model} {' '.join(sorted(set(config["chemical_symbols"])))}
         {newline.join('mass  %i 1.0' % i for i in range(1, num_types + 1))}
 
         neighbor	1.0 bin
@@ -110,7 +125,15 @@ def test_repro(deployed_model):
         """
     )
     for i in range(len(structures)):
-        lmp_in += f"\nread_data structure{i}.data\nrun 0\nwrite_dump all custom output{i}.dump id type x y z fx fy fz\n"
+        lmp_in += textwrap.dedent(
+            f"""delete_atoms group all
+            read_data structure{i}.data add merge
+            run 0
+            print $(pe) file pe{i}.dat
+            print $(c_totalatomicenergy) file totalatomicenergy{i}.dat
+            write_dump all custom output{i}.dump id type x y z fx fy fz c_atomicenergies
+            """
+        )
 
     # for each model,structure pair
     # build a LAMMPS input using that structure
@@ -146,12 +169,26 @@ def test_repro(deployed_model):
                 tmpdir + f"/output{i}.dump", format="lammps-dump-text"
             )
 
-            # check output
-            assert np.allclose(structure.get_forces(), lammps_result.get_forces())
+            # check output atomic quantities
             assert np.allclose(
-                structure.get_potential_energy(), lammps_result.get_potential_energy()
+                structure.get_forces(),
+                lammps_result.get_forces(),
+                atol=1e-5,
             )
             assert np.allclose(
                 structure.get_potential_energies(),
-                lammps_result.get_potential_energies(),
+                lammps_result.arrays["c_atomicenergies"],
+                atol=1e-6,
+            )
+
+            # check system quantities
+            lammps_pe = float(Path(tmpdir + f"/pe{i}.dat").read_text())
+            lammps_totalatomicenergy = float(
+                Path(tmpdir + f"/totalatomicenergy{i}.dat").read_text()
+            )
+            assert np.allclose(lammps_pe, lammps_totalatomicenergy)
+            assert np.allclose(
+                structure.get_potential_energy(),
+                lammps_pe,
+                atol=1e-6,
             )
