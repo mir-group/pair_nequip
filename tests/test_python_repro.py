@@ -27,7 +27,7 @@ TESTS_DIR = Path(__file__).resolve().parent
 )
 def dataset_options(request):
     out = dict(
-        zip(["dataset_file_name", "run_name", "chemical_species"], request.param)
+        zip(["dataset_file_name", "run_name", "chemical_symbols"], request.param)
     )
     out["dataset_file_name"] = TESTS_DIR / ("test_data/" + out["dataset_file_name"])
     return out
@@ -87,8 +87,7 @@ def test_repro(deployed_model):
 
     newline = "\n"
     lmp_in = textwrap.dedent(
-        f"""
-        units		metal
+        f"""units		metal
         atom_style	atomic
         newton off
         thermo 1
