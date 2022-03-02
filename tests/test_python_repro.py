@@ -8,6 +8,7 @@ import numpy as np
 import yaml
 import textwrap
 from io import StringIO
+from collections import Counter
 
 import ase
 import ase.build
@@ -25,23 +26,12 @@ TESTS_DIR = Path(__file__).resolve().parent
 # TODO: add a tiny cell with a giant cutoff for self images
 @pytest.fixture(
     params=[
-        # ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0, {}),
-        # ("aspirin.xyz", "aspirin", ["C", "H", "O"], 15.0, {}),
-        # ("w-14-subset.xyz", "w-14", ["W"], 4.5, {}),
-        (
-            "w-14-subset-two-atom.xyz",
-            "w-14-twoatom",
-            ["W"],
-            3.0,
-            {"per_species_rescale_scales": "dataset_per_atom_total_energy_std"},
-        ),
-        (
-            "w-14-subset-two-atom.xyz",
-            "w-14-twoatom",
-            ["W"],
-            6.0,
-            {"per_species_rescale_scales": "dataset_per_atom_total_energy_std"},
-        ),
+        ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0, {}),
+        ("aspirin.xyz", "aspirin", ["C", "H", "O"], 15.0, {}),
+        ("Cu.xyz", "Cu", ["Cu"], 4.5, {}),
+        ("Cu-cubic.xyz", "Cu", ["Cu"], 4.5, {}),
+        ("Cu-cubic.xyz", "Cu", ["Cu"], 15.5, {}),
+        ("Cu-cubic-big.xyz", "Cu", ["Cu"], 5.1134, {}),
     ]
 )
 def dataset_options(request):
@@ -56,7 +46,8 @@ def dataset_options(request):
     return out
 
 
-@pytest.fixture(params=[187382, 109109])
+# @pytest.fixture(params=[187382, 109109])
+@pytest.fixture(params=[182, 109])
 def model_seed(request):
     return request.param
 
@@ -169,7 +160,10 @@ def test_repro(deployed_model):
         # save out the structure
         for i, structure in enumerate(structures):
             ase.io.write(
-                tmpdir + f"/structure{i}.data", structure, format="lammps-data"
+                tmpdir + f"/structure{i}.data",
+                structure,
+                format="lammps-data",
+                force_skew=True,
             )
         # save out the LAMMPS input:
         infile_path = tmpdir + "/test_repro.in"
@@ -219,6 +213,9 @@ def test_repro(deployed_model):
 
         # load dumped data
         for i, structure in enumerate(structures):
+            lammps_result = ase.io.read(
+                tmpdir + f"/output{i}.dump", format="lammps-dump-text"
+            )
             # first, check the model INPUTS
             structure_data = AtomicData.from_ase(
                 structure, r_max=float(config["r_max"])
@@ -240,13 +237,16 @@ def test_repro(deployed_model):
             )
             # edge i,j,shift tuples should be unique
             assert len(lammps_edge_tuples) == len(mi["i"])
-            assert lammps_edge_tuples == nq_edge_tuples
+            # check same number of i,j edges across both
+            assert Counter(e[:2] for e in lammps_edge_tuples) == Counter(
+                e[:2] for e in nq_edge_tuples
+            )
+            # TODO: maybe check the shifts themselves??
+            # unclear because of atoms on boundaries getting put into different images
+            # assert lammps_edge_tuples == nq_edge_tuples
 
             # now check the OUTPUTS
             structure.calc = calc
-            lammps_result = ase.io.read(
-                tmpdir + f"/output{i}.dump", format="lammps-dump-text"
-            )
 
             # check output atomic quantities
             assert np.allclose(
