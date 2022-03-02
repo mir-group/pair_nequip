@@ -47,6 +47,7 @@ jobs:
         cd lammps_dir/
         wget "https://github.com/lammps/lammps/archive/release.zip"
         unzip release.zip
+        mv lammps-release/ lammps/
         rm release.zip
         cd ..
         ./patch_lammps.sh lammps_dir/lammps/
