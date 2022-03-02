@@ -402,6 +402,7 @@ void PairNEQUIP::compute(int eflag, int vflag){
       }
     }
   }
+  if (debug_mode) printf("end NEQUIP edges\n");
 
   // shorten the list before sending to nequip
   torch::Tensor edges_tensor = torch::zeros({2,edge_counter}, torch::TensorOptions().dtype(torch::kInt64));
