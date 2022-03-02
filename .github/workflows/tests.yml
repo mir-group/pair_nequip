@@ -47,7 +47,7 @@ jobs:
         mkdir lammps_dir/
         cd lammps_dir/
         wget -nv "https://github.com/lammps/lammps/archive/release.zip"
-        unzip release.zip
+        unzip -q release.zip
         mv lammps-release/ lammps/
         rm release.zip
         cd ..
@@ -55,7 +55,7 @@ jobs:
         cd lammps_dir/lammps/
         mkdir build/
         cd build/
-        cmake ../cmake -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'`
+        cmake ../cmake -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` -DMKL_INCLUDE_DIR=`python -c "import sysconfig;from pathlib import Path;print(Path(sysconfig.get_paths()[\"include\"]).parent)"`
         make -j$(nproc)
         cd $BASE_DIR
     - name: Run tests with pytest
