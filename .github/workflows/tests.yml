@@ -39,7 +39,7 @@ jobs:
           NEQUIP: "${{ matrix.nequip-branch }}"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        pip install "https://github.com/mir-group/nequip/${NEQUIP}.zip"
+        pip install "https://github.com/mir-group/nequip/archive/${NEQUIP}.zip"
     - name: Fetch and build LAMMPS
       run: |
         BASE_DIR=`pwd`
