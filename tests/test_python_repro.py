@@ -22,7 +22,7 @@ TESTS_DIR = Path(__file__).resolve().parent
 @pytest.fixture(
     params=[
         ("aspirin.xyz", "aspirin", ["C", "H", "O"]),
-        ("w-14-subset.xyz", "w-14.xyz", ["W"]),
+        # ("w-14-subset.xyz", "w-14.xyz", ["W"]),
     ]
 )
 def dataset_options(request):
@@ -76,7 +76,7 @@ def deployed_model(model_seed, dataset_options):
         structures = [d[i].to_ase(type_mapper=d.type_mapper) for i in range(5)]
         # give them cells even if nonperiodic
         if not all(structures[0].pbc):
-            L = 100.0
+            L = 50.0
             for struct in structures:
                 struct.cell = L * np.eye(3)
                 struct.center()
@@ -89,7 +89,11 @@ def test_repro(deployed_model):
     deployed_model, structures, config = deployed_model
     num_types = len(config["chemical_symbols"])
 
-    calc = NequIPCalculator.from_deployed_model(deployed_model, set_global_options=True)
+    calc = NequIPCalculator.from_deployed_model(
+        deployed_model,
+        set_global_options=True,
+        species_to_type_name={s: s for s in config["chemical_symbols"]},
+    )
 
     newline = "\n"
     periodic = all(structures[0].pbc)
