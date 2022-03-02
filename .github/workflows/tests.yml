@@ -34,6 +34,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install torch==${TORCH} -f https://download.pytorch.org/whl/cpu/torch_stable.html
         pip install pytest
+        pip install mkl-include
     - name: Install NequIP
       env:
           NEQUIP: "${{ matrix.nequip-branch }}"
