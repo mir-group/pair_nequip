@@ -26,9 +26,10 @@ TESTS_DIR = Path(__file__).resolve().parent
 @pytest.fixture(
     params=[
         ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0),
-        ("aspirin.xyz", "aspirin", ["C", "H", "O"], 6.0),
-        ("w-14-subset.xyz", "w-14.xyz", ["W"], 4.5),
-        ("w-14-subset.xyz", "w-14.xyz", ["W"], 3.0),
+        ("aspirin.xyz", "aspirin", ["C", "H", "O"], 15.0),
+        ("w-14-subset.xyz", "w-14", ["W"], 4.5),
+        ("w-14-subset-one-atom.xyz", "w-14-oneatom", ["W"], 3.0),
+        ("w-14-subset-one-atom.xyz", "w-14-oneatom", ["W"], 6.0),
     ]
 )
 def dataset_options(request):

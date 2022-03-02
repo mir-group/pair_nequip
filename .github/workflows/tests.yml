@@ -56,7 +56,12 @@ jobs:
         cd build/
         cmake ../cmake -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` -DMKL_INCLUDE_DIR=`python -c "import sysconfig;from pathlib import Path;print(Path(sysconfig.get_paths()[\"include\"]).parent)"`
         make -j$(nproc)
+        echo "LAMMPS in dir"
+        pwd
+        ls lmp
         cd ../../..
+        echo "Now in dir"
+        pwd
     - name: Run tests with pytest
       run: |
         LAMMPS=lammps_dir/lammps/build/lmp pytest tests/
