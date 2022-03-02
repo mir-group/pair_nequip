@@ -132,7 +132,7 @@ def test_repro(deployed_model):
             run 0
             print $({PRECISION_CONST} * pe) file pe{i}.dat
             print $({PRECISION_CONST} * c_totalatomicenergy) file totalatomicenergy{i}.dat
-            write_dump all custom output{i}.dump id type x y z fx fy fz c_atomicenergies
+            write_dump all custom output{i}.dump id type x y z fx fy fz c_atomicenergies modify format float %20.15g
             """
         )
 
@@ -178,7 +178,7 @@ def test_repro(deployed_model):
             )
             assert np.allclose(
                 structure.get_potential_energies(),
-                lammps_result.arrays["c_atomicenergies"],
+                lammps_result.arrays["c_atomicenergies"].reshape(-1),
                 atol=1e-6,
             )
 
