@@ -25,11 +25,23 @@ TESTS_DIR = Path(__file__).resolve().parent
 # TODO: add a tiny cell with a giant cutoff for self images
 @pytest.fixture(
     params=[
-        ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0),
-        ("aspirin.xyz", "aspirin", ["C", "H", "O"], 15.0),
-        ("w-14-subset.xyz", "w-14", ["W"], 4.5),
-        ("w-14-subset-one-atom.xyz", "w-14-oneatom", ["W"], 3.0),
-        ("w-14-subset-one-atom.xyz", "w-14-oneatom", ["W"], 6.0),
+        # ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0, {}),
+        # ("aspirin.xyz", "aspirin", ["C", "H", "O"], 15.0, {}),
+        # ("w-14-subset.xyz", "w-14", ["W"], 4.5, {}),
+        (
+            "w-14-subset-two-atom.xyz",
+            "w-14-twoatom",
+            ["W"],
+            3.0,
+            {"per_species_rescale_scales": "dataset_per_atom_total_energy_std"},
+        ),
+        (
+            "w-14-subset-two-atom.xyz",
+            "w-14-twoatom",
+            ["W"],
+            6.0,
+            {"per_species_rescale_scales": "dataset_per_atom_total_energy_std"},
+        ),
     ]
 )
 def dataset_options(request):
@@ -40,6 +52,7 @@ def dataset_options(request):
         )
     )
     out["dataset_file_name"] = TESTS_DIR / ("test_data/" + out["dataset_file_name"])
+    out.update(request.param[-1])
     return out
 
 

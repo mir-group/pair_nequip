@@ -64,8 +64,4 @@ jobs:
         pwd
     - name: Run tests with pytest
       run: |
-        echo "In dir"
-        pwd
-        echo "Has LAMMPS:"
-        ls lammps_dir/
-        LAMMPS=lammps_dir/lammps/build/lmp pytest tests/
+        LAMMPS=`pwd`/lammps_dir/lammps/build/lmp pytest tests/
