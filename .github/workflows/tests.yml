@@ -45,7 +45,9 @@ jobs:
         BASE_DIR=`pwd`
         mkdir lammps_dir/
         cd lammps_dir/
-        git clone -b release --depth 1 git@github.com:lammps/lammps
+        wget "https://github.com/lammps/lammps/archive/release.zip"
+        unzip release.zip
+        rm release.zip
         cd ..
         ./patch_lammps.sh lammps_dir/lammps/
         cd lammps_dir/lammps/
