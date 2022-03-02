@@ -7,33 +7,42 @@ from pathlib import Path
 import numpy as np
 import yaml
 import textwrap
+from io import StringIO
 
 import ase
 import ase.build
 import ase.io
 
+import torch
+
 from nequip.ase import NequIPCalculator
 from nequip.utils import Config
-from nequip.data import dataset_from_config
+from nequip.data import dataset_from_config, AtomicData, AtomicDataDict
 
 TESTS_DIR = Path(__file__).resolve().parent
 
 
+# TODO: add a tiny cell with a giant cutoff for self images
 @pytest.fixture(
     params=[
-        ("aspirin.xyz", "aspirin", ["C", "H", "O"]),
-        ("w-14-subset.xyz", "w-14.xyz", ["W"]),
+        ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0),
+        ("aspirin.xyz", "aspirin", ["C", "H", "O"], 6.0),
+        ("w-14-subset.xyz", "w-14.xyz", ["W"], 4.5),
+        ("w-14-subset.xyz", "w-14.xyz", ["W"], 3.0),
     ]
 )
 def dataset_options(request):
     out = dict(
-        zip(["dataset_file_name", "run_name", "chemical_symbols"], request.param)
+        zip(
+            ["dataset_file_name", "run_name", "chemical_symbols", "r_max"],
+            request.param,
+        )
     )
     out["dataset_file_name"] = TESTS_DIR / ("test_data/" + out["dataset_file_name"])
     return out
 
 
-@pytest.fixture(params=[187382, 109109, 1313])
+@pytest.fixture(params=[187382, 109109])
 def model_seed(request):
     return request.param
 
@@ -167,8 +176,59 @@ def test_repro(deployed_model):
         )
         retcode.check_returncode()
 
+        # load debug data:
+        model_inputs = []
+        lammps_stdout = iter(retcode.stdout.decode("utf-8").splitlines())
+        line = next(lammps_stdout, None)
+        while line is not None:
+            if line.startswith("NEQUIP edges: i j xi[:] xj[:] cell_shift[:] rij"):
+                edges = []
+                while True:
+                    line = next(lammps_stdout)
+                    if line.startswith("end NEQUIP edges"):
+                        break
+                    edges.append(line)
+                edges = np.loadtxt(StringIO("\n".join(edges)))
+                model_inputs.append(edges)
+            line = next(lammps_stdout, None)
+        new_model_inputs = []
+        for mi in model_inputs:
+            new_model_inputs.append(
+                {
+                    "i": mi[:, 0:1].astype(int),
+                    "j": mi[:, 1:2].astype(int),
+                    "cell_shift": mi[:, 8:11].astype(int),
+                }
+            )
+        model_inputs = new_model_inputs
+        del new_model_inputs
+
         # load dumped data
         for i, structure in enumerate(structures):
+            # first, check the model INPUTS
+            structure_data = AtomicData.from_ase(
+                structure, r_max=float(config["r_max"])
+            )
+            mi = model_inputs[i]
+            lammps_edge_tuples = set(
+                tuple(e) for e in np.hstack((mi["i"], mi["j"], mi["cell_shift"]))
+            )
+            nq_edge_tuples = set(
+                tuple(e.tolist())
+                for e in torch.hstack(
+                    (
+                        structure_data[AtomicDataDict.EDGE_INDEX_KEY].t(),
+                        structure_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY].to(
+                            torch.long
+                        ),
+                    )
+                )
+            )
+            # edge i,j,shift tuples should be unique
+            assert len(lammps_edge_tuples) == len(mi["i"])
+            assert lammps_edge_tuples == nq_edge_tuples
+
+            # now check the OUTPUTS
             structure.calc = calc
             lammps_result = ase.io.read(
                 tmpdir + f"/output{i}.dump", format="lammps-dump-text"
