@@ -22,7 +22,7 @@ TESTS_DIR = Path(__file__).resolve().parent
 @pytest.fixture(
     params=[
         ("aspirin.xyz", "aspirin", ["C", "H", "O"]),
-        # ("w-14-subset.xyz", "w-14.xyz", ["W"]),
+        ("w-14-subset.xyz", "w-14.xyz", ["W"]),
     ]
 )
 def dataset_options(request):
