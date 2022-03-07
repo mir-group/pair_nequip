@@ -26,12 +26,12 @@ TESTS_DIR = Path(__file__).resolve().parent
 # TODO: add a tiny cell with a giant cutoff for self images
 @pytest.fixture(
     params=[
-        ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0, {}),
-        ("aspirin.xyz", "aspirin", ["C", "H", "O"], 15.0, {}),
-        ("Cu.xyz", "Cu", ["Cu"], 4.5, {}),
+        # ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0, {}),
+        # ("aspirin.xyz", "aspirin", ["C", "H", "O"], 15.0, {}),
+        # ("Cu.xyz", "Cu", ["Cu"], 4.5, {}),
         ("Cu-cubic.xyz", "Cu", ["Cu"], 4.5, {}),
-        ("Cu-cubic.xyz", "Cu", ["Cu"], 15.5, {}),
-        ("Cu-cubic-big.xyz", "Cu", ["Cu"], 5.1134, {}),
+        # ("Cu-cubic.xyz", "Cu", ["Cu"], 15.5, {}),
+        # ("CuPd-cubic-big.xyz", "CuPd", ["Cu", "Pd"], 5.1, {}),
     ]
 )
 def dataset_options(request):
@@ -46,8 +46,7 @@ def dataset_options(request):
     return out
 
 
-# @pytest.fixture(params=[187382, 109109])
-@pytest.fixture(params=[182, 109])
+@pytest.fixture(params=[187382, 109109])
 def model_seed(request):
     return request.param
 
@@ -94,6 +93,10 @@ def deployed_model(model_seed, dataset_options):
             for struct in structures:
                 struct.cell = L * np.eye(3)
                 struct.center()
+        for s in structures:
+            s.rattle(stdev=0.2)
+            s.wrap()
+        structures = structures[:1]
         yield deployed_path, structures, config
 
 
@@ -111,8 +114,10 @@ def test_repro(deployed_model):
 
     newline = "\n"
     periodic = all(structures[0].pbc)
+    PRECISION_CONST: float = 1000.0
     lmp_in = textwrap.dedent(
-        f"""units		metal
+        f"""
+        units		metal
         atom_style	atomic
         newton off
         thermo 1
@@ -120,17 +125,16 @@ def test_repro(deployed_model):
         # get a box defined before pair_coeff
         {'boundary p p p' if periodic else 'boundary s s s'}
 
-        read_data structure0.data
-
+        read_data structure.data
 
         pair_style	nequip
         # note that ASE outputs lammps types in alphabetical order of chemical symbols
         # since we use chem symbols in this test, just put the same
         pair_coeff	* * {deployed_model} {' '.join(sorted(set(config["chemical_symbols"])))}
-        {newline.join('mass  %i 1.0' % i for i in range(1, num_types + 1))}
+{newline.join('        mass  %i 1.0' % i for i in range(1, num_types + 1))}
 
         neighbor	1.0 bin
-        neigh_modify    delay 0 every 1
+        neigh_modify    delay 0 every 1 check no
 
         fix		1 all nve
 
@@ -140,31 +144,16 @@ def test_repro(deployed_model):
         compute totalatomicenergy all reduce sum c_atomicenergies
 
         thermo_style custom step time temp pe c_totalatomicenergy etotal press spcpu cpuremain
+        run 0
+        print $({PRECISION_CONST} * pe) file pe.dat
+        print $({PRECISION_CONST} * c_totalatomicenergy) file totalatomicenergy.dat
+        write_dump all custom output.dump id type x y z fx fy fz c_atomicenergies modify format float %20.15g
         """
     )
-    PRECISION_CONST: float = 1000.0
-    for i in range(len(structures)):
-        lmp_in += textwrap.dedent(
-            f"""delete_atoms group all
-            read_data structure{i}.data add merge
-            run 0
-            print $({PRECISION_CONST} * pe) file pe{i}.dat
-            print $({PRECISION_CONST} * c_totalatomicenergy) file totalatomicenergy{i}.dat
-            write_dump all custom output{i}.dump id type x y z fx fy fz c_atomicenergies modify format float %20.15g
-            """
-        )
 
     # for each model,structure pair
     # build a LAMMPS input using that structure
     with tempfile.TemporaryDirectory() as tmpdir:
-        # save out the structure
-        for i, structure in enumerate(structures):
-            ase.io.write(
-                tmpdir + f"/structure{i}.data",
-                structure,
-                format="lammps-data",
-                force_skew=True,
-            )
         # save out the LAMMPS input:
         infile_path = tmpdir + "/test_repro.in"
         with open(infile_path, "w") as f:
@@ -172,78 +161,114 @@ def test_repro(deployed_model):
         # environment variables
         env = dict(os.environ)
         env["NEQUIP_DEBUG"] = "true"
-
-        # run LAMMPS
-        # TODO: use NEQUIP_DEBUG env var to get input printouts and compare
-        retcode = subprocess.run(
-            [env.get("LAMMPS", "lmp"), "-in", infile_path],
-            cwd=tmpdir,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        retcode.check_returncode()
-
-        # load debug data:
-        model_inputs = []
-        lammps_stdout = iter(retcode.stdout.decode("utf-8").splitlines())
-        line = next(lammps_stdout, None)
-        while line is not None:
-            if line.startswith("NEQUIP edges: i j xi[:] xj[:] cell_shift[:] rij"):
-                edges = []
-                while True:
-                    line = next(lammps_stdout)
-                    if line.startswith("end NEQUIP edges"):
-                        break
-                    edges.append(line)
-                edges = np.loadtxt(StringIO("\n".join(edges)))
-                model_inputs.append(edges)
-            line = next(lammps_stdout, None)
-        new_model_inputs = []
-        for mi in model_inputs:
-            new_model_inputs.append(
-                {
-                    "i": mi[:, 0:1].astype(int),
-                    "j": mi[:, 1:2].astype(int),
-                    "cell_shift": mi[:, 8:11].astype(int),
-                }
-            )
-        model_inputs = new_model_inputs
-        del new_model_inputs
-
-        # load dumped data
+        # save out the structure
         for i, structure in enumerate(structures):
+            ase.io.write(
+                tmpdir + f"/structure.data",
+                structure,
+                format="lammps-data",
+                force_skew=True,  # TODO
+            )
+
+            # run LAMMPS
+            retcode = subprocess.run(
+                [env.get("LAMMPS", "lmp"), "-in", infile_path],
+                cwd=tmpdir,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            retcode.check_returncode()
+
+            # load debug data:
+            mi = None
+            lammps_stdout = iter(retcode.stdout.decode("utf-8").splitlines())
+            line = next(lammps_stdout, None)
+            while line is not None:
+                if line.startswith("NEQUIP edges: i j xi[:] xj[:] cell_shift[:] rij"):
+                    edges = []
+                    while not line.startswith("end NEQUIP edges"):
+                        line = next(lammps_stdout)
+                        edges.append(line)
+                    edges = np.loadtxt(StringIO("\n".join(edges[:-1])))
+                    mi = edges
+                    break
+                line = next(lammps_stdout)
+            # for fuzzy set how many digits to keep
+            # One digit should be enough since images should differ by large amounts
+            # (cell widths)
+            EDGE_LENGTH_DIGITS = 2
+            EDGE_LENGTH_FACTOR = 10.0**EDGE_LENGTH_DIGITS
+            mi = {
+                "i": mi[:, 0:1].astype(int),
+                "j": mi[:, 1:2].astype(int),
+                "xi": mi[:, 2:5],
+                "xj": mi[:, 5:8],
+                "cell_shift": mi[:, 8:11].astype(int),
+                "rij": np.floor(mi[:, 11:] * EDGE_LENGTH_FACTOR).astype(int),
+            }
+
+            # load dumped data
             lammps_result = ase.io.read(
-                tmpdir + f"/output{i}.dump", format="lammps-dump-text"
+                tmpdir + f"/output.dump", format="lammps-dump-text"
             )
             # first, check the model INPUTS
-            structure_data = AtomicData.from_ase(
-                structure, r_max=float(config["r_max"])
+            structure_data = AtomicData.to_AtomicDataDict(
+                AtomicData.from_ase(structure, r_max=float(config["r_max"]))
             )
-            mi = model_inputs[i]
-            lammps_edge_tuples = set(
-                tuple(e) for e in np.hstack((mi["i"], mi["j"], mi["cell_shift"]))
+            structure_data = AtomicDataDict.with_edge_vectors(
+                structure_data, with_lengths=True
             )
-            nq_edge_tuples = set(
+            lammps_edge_tuples = [
+                tuple(e)
+                for e in np.hstack(
+                    (
+                        mi["i"],
+                        mi["j"],
+                        mi["rij"],
+                        mi["cell_shift"],
+                    )
+                )
+            ]
+            nq_edge_tuples = [
                 tuple(e.tolist())
                 for e in torch.hstack(
                     (
                         structure_data[AtomicDataDict.EDGE_INDEX_KEY].t(),
+                        torch.floor(
+                            structure_data[AtomicDataDict.EDGE_LENGTH_KEY].unsqueeze(-1)
+                            * EDGE_LENGTH_FACTOR
+                        ).to(torch.long),
                         structure_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY].to(
                             torch.long
                         ),
                     )
                 )
-            )
+            ]
+            # same num edges
+            assert len(lammps_edge_tuples) == len(nq_edge_tuples)
             # edge i,j,shift tuples should be unique
-            assert len(lammps_edge_tuples) == len(mi["i"])
+            assert len(set(lammps_edge_tuples)) == len(mi["i"])
+            assert len(set(nq_edge_tuples)) == len(nq_edge_tuples)
             # check same number of i,j edges across both
             assert Counter(e[:2] for e in lammps_edge_tuples) == Counter(
                 e[:2] for e in nq_edge_tuples
             )
+            # check that positions are the same
+            # 1e-4 because that's the precision LAMMPS is printing in TODO
+            assert np.allclose(
+                mi["xi"], structure.positions[mi["i"].reshape(-1)], atol=1e-4
+            )
+            assert np.allclose(
+                mi["xj"], structure.positions[mi["j"].reshape(-1)], atol=1e-4
+            )
+            # check same number of i,j,r edges (r rounded for fuzzy matching)
+            assert Counter(e[:3] for e in lammps_edge_tuples) == Counter(
+                e[:3] for e in nq_edge_tuples
+            )
             # TODO: maybe check the shifts themselves??
             # unclear because of atoms on boundaries getting put into different images
-            # assert lammps_edge_tuples == nq_edge_tuples
+            assert set(lammps_edge_tuples) == set(nq_edge_tuples)
 
             # now check the OUTPUTS
             structure.calc = calc
@@ -261,11 +286,9 @@ def test_repro(deployed_model):
             )
 
             # check system quantities
-            lammps_pe = (
-                float(Path(tmpdir + f"/pe{i}.dat").read_text()) / PRECISION_CONST
-            )
+            lammps_pe = float(Path(tmpdir + f"/pe.dat").read_text()) / PRECISION_CONST
             lammps_totalatomicenergy = (
-                float(Path(tmpdir + f"/totalatomicenergy{i}.dat").read_text())
+                float(Path(tmpdir + f"/totalatomicenergy.dat").read_text())
                 / PRECISION_CONST
             )
             assert np.allclose(lammps_pe, lammps_totalatomicenergy)
