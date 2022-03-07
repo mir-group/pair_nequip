@@ -26,12 +26,12 @@ TESTS_DIR = Path(__file__).resolve().parent
 # TODO: add a tiny cell with a giant cutoff for self images
 @pytest.fixture(
     params=[
-        # ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0, {}),
-        # ("aspirin.xyz", "aspirin", ["C", "H", "O"], 15.0, {}),
-        # ("Cu.xyz", "Cu", ["Cu"], 4.5, {}),
+        ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0, {}),
+        ("aspirin.xyz", "aspirin", ["C", "H", "O"], 15.0, {}),
+        ("Cu.xyz", "Cu", ["Cu"], 4.5, {}),
         ("Cu-cubic.xyz", "Cu", ["Cu"], 4.5, {}),
-        # ("Cu-cubic.xyz", "Cu", ["Cu"], 15.5, {}),
-        # ("CuPd-cubic-big.xyz", "CuPd", ["Cu", "Pd"], 5.1, {}),
+        ("Cu-cubic.xyz", "Cu", ["Cu"], 15.5, {}),
+        ("CuPd-cubic-big.xyz", "CuPd", ["Cu", "Pd"], 5.1, {}),
     ]
 )
 def dataset_options(request):
