@@ -6,7 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Most recent change on the bottom.
 
-## [Unreleased]
+## [0.5.1] - Unreleased
+### Added
+- Full suite of unit tests
+
+### Fixed
+- edge duplication issue
+
+## [0.5.0] - 11/24/2021
 
 ### Changed
 - The mapping from LAMMPS to NequIP types is now explicitly provided
