@@ -34,6 +34,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install torch==${TORCH} -f https://download.pytorch.org/whl/cpu/torch_stable.html
         pip install pytest
+        pip install pytest-xdist[psutil]
         pip install mkl-include
     - name: Install NequIP
       env:
@@ -64,4 +65,5 @@ jobs:
         pwd
     - name: Run tests with pytest
       run: |
-        LAMMPS=`pwd`/lammps_dir/lammps/build/lmp pytest tests/
+        # See https://github.com/pytest-dev/pytest/issues/1075
+        PYTHONHASHSEED=0 LAMMPS=`pwd`/lammps_dir/lammps/build/lmp pytest -n auto tests/

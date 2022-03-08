@@ -27,7 +27,7 @@ TESTS_DIR = Path(__file__).resolve().parent
     params=[
         ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0, {}),
         ("aspirin.xyz", "aspirin", ["C", "H", "O"], 15.0, {}),
-        ("Cu.xyz", "Cu", ["Cu"], 4.5, {}),
+        # ("Cu.xyz", "Cu", ["Cu"], 4.5, {}),
         ("Cu-cubic.xyz", "Cu", ["Cu"], 4.5, {}),
         ("Cu-cubic.xyz", "Cu", ["Cu"], 15.5, {}),
         ("CuPd-cubic-big.xyz", "CuPd", ["Cu", "Pd"], 5.1, {}),
@@ -197,9 +197,6 @@ def test_repro(deployed_model):
                         assert np.allclose(cell, structure.cell)
                     break
                 line = next(lammps_stdout)
-            # for fuzzy set how many digits to keep
-            # One digit should be enough since images should differ by large amounts
-            # (cell widths)
             mi = {
                 "i": mi[:, 0:1].astype(int),
                 "j": mi[:, 1:2].astype(int),
