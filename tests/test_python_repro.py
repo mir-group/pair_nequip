@@ -23,7 +23,6 @@ from nequip.data import dataset_from_config, AtomicData, AtomicDataDict
 TESTS_DIR = Path(__file__).resolve().parent
 
 
-# TODO: add a tiny cell with a giant cutoff for self images
 @pytest.fixture(
     params=[
         ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0, {}),
@@ -114,7 +113,7 @@ def test_repro(deployed_model):
 
     newline = "\n"
     periodic = all(structures[0].pbc)
-    PRECISION_CONST: float = 1000.0
+    PRECISION_CONST: float = 1e6
     lmp_in = textwrap.dedent(
         f"""
         units		metal
@@ -192,20 +191,22 @@ def test_repro(deployed_model):
                         edges.append(line)
                     edges = np.loadtxt(StringIO("\n".join(edges[:-1])))
                     mi = edges
+                elif line.startswith("cell:"):
+                    cell = np.loadtxt([next(lammps_stdout) for _ in range(3)])
+                    if structure.cell.orthorhombic and any(structure.pbc):
+                        assert np.allclose(cell, structure.cell)
                     break
                 line = next(lammps_stdout)
             # for fuzzy set how many digits to keep
             # One digit should be enough since images should differ by large amounts
             # (cell widths)
-            EDGE_LENGTH_DIGITS = 2
-            EDGE_LENGTH_FACTOR = 10.0**EDGE_LENGTH_DIGITS
             mi = {
                 "i": mi[:, 0:1].astype(int),
                 "j": mi[:, 1:2].astype(int),
                 "xi": mi[:, 2:5],
                 "xj": mi[:, 5:8],
                 "cell_shift": mi[:, 8:11].astype(int),
-                "rij": np.floor(mi[:, 11:] * EDGE_LENGTH_FACTOR).astype(int),
+                "rij": mi[:, 11:],
             }
 
             # load dumped data
@@ -225,7 +226,6 @@ def test_repro(deployed_model):
                     (
                         mi["i"],
                         mi["j"],
-                        mi["rij"],
                         mi["cell_shift"],
                     )
                 )
@@ -235,10 +235,6 @@ def test_repro(deployed_model):
                 for e in torch.hstack(
                     (
                         structure_data[AtomicDataDict.EDGE_INDEX_KEY].t(),
-                        torch.floor(
-                            structure_data[AtomicDataDict.EDGE_LENGTH_KEY].unsqueeze(-1)
-                            * EDGE_LENGTH_FACTOR
-                        ).to(torch.long),
                         structure_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY].to(
                             torch.long
                         ),
@@ -254,35 +250,56 @@ def test_repro(deployed_model):
             assert Counter(e[:2] for e in lammps_edge_tuples) == Counter(
                 e[:2] for e in nq_edge_tuples
             )
-            # check that positions are the same
-            # 1e-4 because that's the precision LAMMPS is printing in TODO
-            assert np.allclose(
-                mi["xi"], structure.positions[mi["i"].reshape(-1)], atol=1e-4
+            if structure.cell.orthorhombic:
+                # triclinic cells get modified for lammps
+                # check that positions are the same
+                # 1e-4 because that's the precision LAMMPS is printing in
+                assert np.allclose(
+                    mi["xi"], structure.positions[mi["i"].reshape(-1)], atol=1e-6
+                )
+                assert np.allclose(
+                    mi["xj"], structure.positions[mi["j"].reshape(-1)], atol=1e-6
+                )
+            if structure.cell.orthorhombic:
+                # triclinic cells get modified for lammps, gives diff't shifts
+                assert set(lammps_edge_tuples) == set(nq_edge_tuples)
+            # finally, check for each ij whether the the "sets" of edge lengths match
+            nq_ijr = np.core.records.fromarrays(
+                (
+                    structure_data[AtomicDataDict.EDGE_INDEX_KEY][0],
+                    structure_data[AtomicDataDict.EDGE_INDEX_KEY][1],
+                    structure_data[AtomicDataDict.EDGE_LENGTH_KEY],
+                ),
+                names="i,j,rij",
             )
-            assert np.allclose(
-                mi["xj"], structure.positions[mi["j"].reshape(-1)], atol=1e-4
+            # we can do "set" comparisons by sorting into groups by ij,
+            # and then sorting the rij _within_ each ij pair---
+            # this is what `order` does for us with the record array
+            nq_ijr.sort(order=["i", "j", "rij"])
+            lammps_ijr = np.core.records.fromarrays(
+                (
+                    mi["i"].reshape(-1),
+                    mi["j"].reshape(-1),
+                    mi["rij"].reshape(-1),
+                ),
+                names="i,j,rij",
             )
-            # check same number of i,j,r edges (r rounded for fuzzy matching)
-            assert Counter(e[:3] for e in lammps_edge_tuples) == Counter(
-                e[:3] for e in nq_edge_tuples
-            )
-            # TODO: maybe check the shifts themselves??
-            # unclear because of atoms on boundaries getting put into different images
-            assert set(lammps_edge_tuples) == set(nq_edge_tuples)
+            lammps_ijr.sort(order=["i", "j", "rij"])
+            assert np.allclose(nq_ijr["rij"], lammps_ijr["rij"])
 
-            # now check the OUTPUTS
+            # --- now check the OUTPUTS ---
             structure.calc = calc
 
             # check output atomic quantities
             assert np.allclose(
                 structure.get_forces(),
                 lammps_result.get_forces(),
-                atol=1e-5,
+                atol=1e-6,
             )
             assert np.allclose(
                 structure.get_potential_energies(),
                 lammps_result.arrays["c_atomicenergies"].reshape(-1),
-                atol=1e-6,
+                atol=2e-7,
             )
 
             # check system quantities
