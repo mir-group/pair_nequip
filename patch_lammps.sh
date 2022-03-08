@@ -1,7 +1,39 @@
 #!/bin/bash
-# patch_lammps.sh /path/to/lammps/
+# patch_lammps.sh [-e] /path/to/lammps/
 
+do_e_mode=false
+
+while getopts "he" option; do
+   case $option in
+      e)
+         do_e_mode=true;;
+      h) # display Help
+         echo "patch_lammps.sh [-e] /path/to/lammps/"
+         exit;;
+   esac
+done
+
+# https://stackoverflow.com/a/9472919
+shift $(($OPTIND - 1))
 lammps_dir=$1
+
+if [ "$lammps_dir" = "" ];
+then
+    echo "lammps_dir must be provided"
+    exit 1
+fi
+
+if [ ! -d "$lammps_dir" ]
+then
+    echo "$lammps_dir doesn't exist"
+    exit 1
+fi
+
+if [ ! -d "$lammps_dir/cmake" ]
+then
+    echo "$lammps_dir doesn't look like a LAMMPS source directory"
+    exit 1
+fi
 
 # Check and produce nice message
 if [ ! -f pair_nequip.cpp ]; then
@@ -15,9 +47,18 @@ if grep -q "find_package(Torch REQUIRED)" $lammps_dir/cmake/CMakeLists.txt ; the
     exit 1
 fi
 
-echo "Copying files..."
-cp *.cpp $lammps_dir/src/
-cp *.h $lammps_dir/src/
+if [ "$do_e_mode" = true ]
+then
+    echo "Making source symlinks (-e)..."
+    for file in *.{cpp,h}; do
+        ln -s `realpath -s $file` $lammps_dir/src/$file
+    done
+else
+    echo "Copying files..."
+    for file in *.{cpp,h}; do
+        cp $file $lammps_dir/src/$file
+    done
+fi
 
 echo "Updating CMakeLists.txt..."
 

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Most recent change on the bottom.
 
 ## [Unreleased]
+### Added
+- `-e` option to `patch_lammps.sh`
 
 ## [0.5.1]
 ### Added
