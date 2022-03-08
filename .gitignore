@@ -32,7 +32,8 @@
 *.out
 *.app
 
-.vscode/
+.vscode/*
+!.vscode/settings.json
 
 
 # ---------- Python .gigignores-----------
