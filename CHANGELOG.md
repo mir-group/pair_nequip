@@ -6,7 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Most recent change on the bottom.
 
-## [0.5.1] - Unreleased
+## [Unreleased]
+
+## [0.5.1]
 ### Added
 - Full suite of unit tests
 
