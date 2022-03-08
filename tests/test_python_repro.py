@@ -167,7 +167,6 @@ def test_repro(deployed_model):
                 tmpdir + f"/structure.data",
                 structure,
                 format="lammps-data",
-                force_skew=True,  # TODO
             )
 
             # run LAMMPS
@@ -195,6 +194,7 @@ def test_repro(deployed_model):
                 elif line.startswith("cell:"):
                     cell = np.loadtxt([next(lammps_stdout) for _ in range(3)])
                     if structure.cell.orthorhombic and any(structure.pbc):
+                        # only check it if ortho, since if not it gets rotated
                         assert np.allclose(cell, structure.cell)
                     break
                 line = next(lammps_stdout)
@@ -258,9 +258,9 @@ def test_repro(deployed_model):
                 assert np.allclose(
                     mi["xj"], structure.positions[mi["j"].reshape(-1)], atol=1e-6
                 )
-            if structure.cell.orthorhombic:
-                # triclinic cells get modified for lammps, gives diff't shifts
-                assert set(lammps_edge_tuples) == set(nq_edge_tuples)
+            # check the ij,shift tuples
+            # these are NOT changed by the rigid rotate+shift LAMMPS cell transform
+            assert set(lammps_edge_tuples) == set(nq_edge_tuples)
             # finally, check for each ij whether the the "sets" of edge lengths match
             nq_ijr = np.core.records.fromarrays(
                 (
