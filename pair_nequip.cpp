@@ -47,9 +47,10 @@
 // (see https://github.com/pytorch/pytorch/blob/dfbd030854359207cb3040b864614affeace11ce/torch/csrc/jit/api/module.cpp#L479)
 // is wrong, and we have ro "reimplement" the function
 // to get around that...
-// it's broken in 1.8 and 1.9 so the < check is correct.
-// This appears to be fixed in 1.10.
-#if (TORCH_VERSION_MAJOR == 1 && TORCH_VERSION_MINOR < 10)
+// it's broken in 1.8 and 1.9
+// BUT the internal logic in the function is wrong in 1.10
+// So we only use torch::jit::freeze in >=1.11
+#if (TORCH_VERSION_MAJOR == 1 && TORCH_VERSION_MINOR <= 10)
   #define DO_TORCH_FREEZE_HACK
   // For the hack, need more headers:
   #include <torch/csrc/jit/passes/freeze_module.h>
@@ -194,7 +195,8 @@ void PairNEQUIP::coeff(int narg, char **arg) {
       auto out_mod = freeze_module(
         model, {}
       );
-      auto graph = model.get_method("forward").graph();
+      // See 1.11 bugfix in https://github.com/pytorch/pytorch/pull/71436
+      auto graph = out_mod.get_method("forward").graph();
       OptimizeFrozenGraph(graph, optimize_numerics);
       model = out_mod;
     #else
@@ -394,7 +396,7 @@ void PairNEQUIP::compute(int eflag, int vflag){
           edge_counter++;
 
           if (debug_mode){
-              printf("%d %d %g %g %g %g %g %g %g %g %g %g\n", itag-1, jtag-1,
+              printf("%d %d %.10g %.10g %.10g %.10g %.10g %.10g %.10g %.10g %.10g %.10g\n", itag-1, jtag-1,
                 pos[itag-1][0],pos[itag-1][1],pos[itag-1][2],pos[jtag-1][0],pos[jtag-1][1],pos[jtag-1][2],
                 e_vec[0],e_vec[1],e_vec[2],sqrt(rsq));
           }
@@ -402,6 +404,7 @@ void PairNEQUIP::compute(int eflag, int vflag){
       }
     }
   }
+  if (debug_mode) printf("end NEQUIP edges\n");
 
   // shorten the list before sending to nequip
   torch::Tensor edges_tensor = torch::zeros({2,edge_counter}, torch::TensorOptions().dtype(torch::kInt64));
