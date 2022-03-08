@@ -27,7 +27,8 @@ TESTS_DIR = Path(__file__).resolve().parent
     params=[
         ("aspirin.xyz", "aspirin", ["C", "H", "O"], 4.0, {}),
         ("aspirin.xyz", "aspirin", ["C", "H", "O"], 15.0, {}),
-        # ("Cu.xyz", "Cu", ["Cu"], 4.5, {}),
+        # ("Cu.xyz", "Cu", ["Cu"], 4.5, {}),  # this one is "too" triclinic and has IO issues in ASE rn
+        ("Cu2AgO4.xyz", "mp-1225882", ["Cu", "Ag", "O"], 4.9, {}),
         ("Cu-cubic.xyz", "Cu", ["Cu"], 4.5, {}),
         ("Cu-cubic.xyz", "Cu", ["Cu"], 15.5, {}),
         ("CuPd-cubic-big.xyz", "CuPd", ["Cu", "Pd"], 5.1, {}),
