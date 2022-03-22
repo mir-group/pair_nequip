@@ -50,7 +50,7 @@
 // to get around that...
 // it's broken in 1.8 and 1.9 so the < check is correct.
 // This appears to be fixed in 1.10.
-#if (TORCH_VERSION_MAJOR == 1 && TORCH_VERSION_MINOR < 10)
+#if (TORCH_VERSION_MAJOR == 1 && TORCH_VERSION_MINOR <= 10)
   #define DO_TORCH_FREEZE_HACK
   // For the hack, need more headers:
   #include <torch/csrc/jit/passes/freeze_module.h>
