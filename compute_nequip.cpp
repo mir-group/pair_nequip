@@ -140,7 +140,7 @@ ComputeNEQUIP::ComputeNEQUIP(LAMMPS *lmp, int narg, char **arg) : Compute(lmp, n
       auto out_mod = freeze_module(
         model, {}
       );
-      auto graph = model.get_method("forward").graph();
+      auto graph = out_mod.get_method("forward").graph();
       OptimizeFrozenGraph(graph, optimize_numerics);
       model = out_mod;
     #else
