@@ -9,6 +9,7 @@ Most recent change on the bottom.
 ## [Unreleased]
 ### Added
 - `-e` option to `patch_lammps.sh`
+- PyTorch 1.11 / fusion strategy support
 
 ## [0.5.1]
 ### Added
