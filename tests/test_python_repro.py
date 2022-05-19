@@ -1,6 +1,7 @@
 import pytest
 
 import os
+import sys
 import tempfile
 import subprocess
 from pathlib import Path
@@ -65,8 +66,8 @@ def deployed_model(model_seed, dataset_options):
         retcode = subprocess.run(
             ["nequip-train", configpath],
             cwd=tmpdir,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
         retcode.check_returncode()
         # run nequip-deploy
@@ -80,8 +81,8 @@ def deployed_model(model_seed, dataset_options):
                 deployed_path,
             ],
             cwd=tmpdir,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
         retcode.check_returncode()
         # load structures to test on
@@ -176,8 +177,9 @@ def test_repro(deployed_model):
                 cwd=tmpdir,
                 env=env,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=sys.stderr,
             )
+            print(retcode.stdout.decode("ascii"))
             retcode.check_returncode()
 
             # load debug data:
