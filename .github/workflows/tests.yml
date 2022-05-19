@@ -46,10 +46,7 @@ jobs:
       run: |
         mkdir lammps_dir/
         cd lammps_dir/
-        wget -nv "https://github.com/lammps/lammps/archive/release.zip"
-        unzip -q release.zip
-        mv lammps-release/ lammps/
-        rm release.zip
+        git clone -b stable_29Sep2021_update2 --depth 1 "https://github.com/lammps/lammps"
         cd ..
         ./patch_lammps.sh lammps_dir/lammps/
         cd lammps_dir/lammps/
