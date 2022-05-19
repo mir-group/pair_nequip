@@ -456,11 +456,21 @@ void PairNEQUIP::compute(int eflag, int vflag){
   auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
   float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
 
+  torch::Tensor v_tensor = output.at("virial").toTensor().cpu();
+  auto v = v_tensor.accessor<float, 3>();
+  virial[0] = v[0][0][0];
+  virial[1] = v[0][1][1];
+  virial[2] = v[0][2][2];
+  virial[3] = v[0][0][1];
+  virial[4] = v[0][0][2];
+  virial[5] = v[0][1][2];
+
   if(debug_mode){
     std::cout << "NequIP model output:\n";
     std::cout << "forces: " << forces_tensor << "\n";
     std::cout << "total_energy: " << total_energy_tensor << "\n";
     std::cout << "atomic_energy: " << atomic_energy_tensor << "\n";
+    std::cout << "virial: " << v_tensor << std::endl;
   }
 
   //std::cout << "atomic energy sum: " << atomic_energy_sum << std::endl;
@@ -478,7 +488,6 @@ void PairNEQUIP::compute(int eflag, int vflag){
     //printf("%d %d %g %g %g %g %g %g\n", i, type[i], pos[itag][0], pos[itag][1], pos[itag][2], f[i][0], f[i][1], f[i][2]);
   }
 
-  // TODO: Virial stuff? (If there even is a pairwise force concept here)
 
   // TODO: Performance: Depending on how the graph network works, using tags for edges may lead to shitty memory access patterns and performance.
   // It may be better to first create tag2i as a separate loop, then set edges[edge_counter][:] = (i, tag2i[jtag]).
