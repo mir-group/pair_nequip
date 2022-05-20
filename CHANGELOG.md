@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Most recent change on the bottom.
 
 ## [Unreleased]
+
+## [0.5.2]
 ### Added
 - `-e` option to `patch_lammps.sh`
 - PyTorch 1.11 / fusion strategy support
