@@ -17,8 +17,8 @@ jobs:
     strategy:
       matrix:
         python-version: [3.9]
-        torch-version: [1.10.0]
-        nequip-branch: ["develop"]
+        torch-version: [1.10.1, 1.11.0]
+        nequip-branch: ["main"]
 
     steps:
     - uses: actions/checkout@v2
@@ -41,15 +41,12 @@ jobs:
           NEQUIP: "${{ matrix.nequip-branch }}"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        pip install "https://github.com/mir-group/nequip/archive/${NEQUIP}.zip"
+        pip install --upgrade-strategy only-if-needed "https://github.com/mir-group/nequip/archive/${NEQUIP}.zip"
     - name: Fetch and build LAMMPS
       run: |
         mkdir lammps_dir/
         cd lammps_dir/
-        wget -nv "https://github.com/lammps/lammps/archive/release.zip"
-        unzip -q release.zip
-        mv lammps-release/ lammps/
-        rm release.zip
+        git clone -b stable_29Sep2021_update2 --depth 1 "https://github.com/lammps/lammps"
         cd ..
         ./patch_lammps.sh lammps_dir/lammps/
         cd lammps_dir/lammps/
