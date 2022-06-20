@@ -1,8 +1,10 @@
 # LAMMPS pair style for NequIP
 
-This pair style allows you to use NequIP models in LAMMPS simulations.
+This pair style allows you to use NequIP models from the [`nequip`](https://github.com/mir-group/nequip) framework in LAMMPS simulations. For more details on NequIP and the Python code, please visit the [`nequip`](https://github.com/mir-group/nequip) repository.
 
-*Note: MPI is not supported due to the message-passing nature of the network.*
+*Please Note: MPI is not supported due to the message-passing nature of the network. For MPI support with large numbers of atoms, please consider our [Allegro model](https://github.com/mir-group/allegro) and corresponding [`pair_allegro`](https://github.com/mir-group/pair_allegro) LAMMPS plugin.*
+
+`pair_nequip` authors: **Anders Johansson**, Albert Musaelian, Lixin Sun.
 
 ## Pre-requisites
 
@@ -14,7 +16,7 @@ This pair style allows you to use NequIP models in LAMMPS simulations.
 pair_style	nequip
 pair_coeff	* * deployed.pth <type name 1> <type name 2> ...
 ```
-where `deployed.pth` is the filename of your trained model.
+where `deployed.pth` is the filename of your trained, **deployed** model.
 
 The names after the model path `deployed.pth` indicate, in order, the names of the NequIP model's atom types to use for LAMMPS atom types 1, 2, and so on. The number of names given must be equal to the number of atom types in the LAMMPS configuration (not the NequIP model!). 
 The given names must be consistent with the names specified in the NequIP training YAML in `chemical_symbol_to_type` or `type_names`.
@@ -91,3 +93,19 @@ if using plain Python and `pip`.
 make -j$(nproc)
 ```
 This gives `lammps/build/lmp`, which can be run as usual with `/path/to/lmp -in in.script`. If you specify `-DCMAKE_INSTALL_PREFIX=/somewhere/in/$PATH` (the default is `$HOME/.local`), you can do `make install` and just run `lmp -in in.script`.
+
+## FAQ
+
+1. Q: My simulation is immediately or bizzarely unstable
+
+   A: Please ensure that your mapping from LAMMPS atom types to NequIP atom types, specified in the `pair_coeff` line, is correct.
+2. Q: I get the following error:
+   ```
+    instance of 'c10::Error'
+        what():  PytorchStreamReader failed locating file constants.pkl: file not found
+   ```
+
+   A: Make sure you remembered to deploy (compile) your model using `nequip-deploy`, and that the path to the model given with `pair_coeff` points to a deployed model `.pth` file, **not** a file containing only weights like `best_model.pth`.
+3. Q: The output pressures and stresses seem wrong / my NPT simulation is broken
+
+    A: NPT/stress support in LAMMPS for `pair_nequip` is in-progress on the `stress` branch and is not yet finished. 
