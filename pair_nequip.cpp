@@ -474,14 +474,21 @@ void PairNEQUIP::compute(int eflag, int vflag){
   auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
   float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
 
-  torch::Tensor v_tensor = output.at("virial").toTensor().cpu();
-  auto v = v_tensor.accessor<float, 3>();
-  virial[0] = v[0][0][0];
-  virial[1] = v[0][1][1];
-  virial[2] = v[0][2][2];
-  virial[3] = v[0][0][1];
-  virial[4] = v[0][0][2];
-  virial[5] = v[0][1][2];
+  if(vflag){
+    torch::Tensor v_tensor = output.at("virial").toTensor().cpu();
+    auto v = v_tensor.accessor<float, 3>();
+    // Convert from 3x3 symmetric tensor format, which NequIP outputs, to the flattened form LAMMPS expects
+    // First [0] index on v is batch
+    virial[0] = v[0][0][0];
+    virial[1] = v[0][1][1];
+    virial[2] = v[0][2][2];
+    virial[3] = v[0][0][1];
+    virial[4] = v[0][0][2];
+    virial[5] = v[0][1][2];
+  }
+  if(vflag_atom) {
+    error->all(FLERR,"Pair style NEQUIP does not support per-atom virial");
+  }
 
   if(debug_mode){
     std::cout << "NequIP model output:\n";
