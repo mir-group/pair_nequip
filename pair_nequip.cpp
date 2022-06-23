@@ -495,7 +495,7 @@ void PairNEQUIP::compute(int eflag, int vflag){
     std::cout << "forces: " << forces_tensor << "\n";
     std::cout << "total_energy: " << total_energy_tensor << "\n";
     std::cout << "atomic_energy: " << atomic_energy_tensor << "\n";
-    std::cout << "virial: " << v_tensor << std::endl;
+    if(vflag) std::cout << "virial: " << output.at("virial").toTensor().cpu() << std::endl;
   }
 
   //std::cout << "atomic energy sum: " << atomic_energy_sum << std::endl;
