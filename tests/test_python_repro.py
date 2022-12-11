@@ -332,8 +332,13 @@ def test_repro(deployed_model):
                 lammps_pe,
                 atol=1e-6,
             )
-            assert np.allclose(
-                structure.get_stress(voigt=False),
-                lammps_stress,
-                atol=1e-6,
-            )
+            if periodic:
+                # In LAMMPS, the convention is that the stress tensor, and thus the pressure, is related to the virial
+                # WITHOUT a sign change.  In `nequip`, we chose currently to follow the virial = -stress x volume
+                # convention => stress = -1/V * virial.  ASE does not change the sign of the virial, so we have
+                # to flip the sign from ASE for the comparison.
+                assert np.allclose(
+                    -structure.get_stress(voigt=False),
+                    lammps_stress,
+                    atol=1e-6,
+                )

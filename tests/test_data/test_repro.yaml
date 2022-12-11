@@ -2,6 +2,14 @@ run_name: minimal
 seed: 123
 dataset_seed: 456
 
+# from minimal_stress.yaml
+model_builders:
+  - SimpleIrrepsConfig
+  - EnergyModel
+  - PerSpeciesRescale
+  - StressForceOutput
+  - RescaleEnergyEtc
+
 # network
 num_basis: 4
 l_max: 1
