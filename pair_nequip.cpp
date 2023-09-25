@@ -28,6 +28,8 @@
 #include "potential_file_reader.h"
 #include "tokenizer.h"
 
+#include <algorithm>
+#include <vector>
 #include <cmath>
 #include <cstring>
 #include <numeric>
@@ -94,11 +96,13 @@ void PairNEQUIP::init_style(){
 
   // need a full neighbor list
   int irequest = neighbor->request(this,instance_me);
-  neighbor->requests[irequest]->half = 0;
-  neighbor->requests[irequest]->full = 1;
+  //neighbor->requests[irequest]->half = 0;
+  //neighbor->requests[irequest]->full = 1;
 
   // TODO: probably also
-  neighbor->requests[irequest]->ghost = 0;
+  //neighbor->requests[irequest]->ghost = 0;
+
+  neighbor->add_request(this, NeighConst::REQ_FULL);
 
   // TODO: I think Newton should be off, enforce this.
   // The network should just directly compute the total forces
@@ -486,9 +490,25 @@ void PairNEQUIP::compute(int eflag, int vflag){
     virial[4] = v[0][0][2];
     virial[5] = v[0][1][2];
   }
+
   if(vflag_atom) {
-    error->all(FLERR,"Pair style NEQUIP does not support per-atom virial");
-  }
+    torch::Tensor atomic_virial_tensor = output.at("atom_virial").toTensor().cpu();
+    auto atomic_virial = atomic_virial_tensor.accessor<float, 3>();
+    for (int ii = 0; ii < ntotal; ii++)
+    {
+      int i = ilist[ii];
+      vatom[i][0] +=  atomic_virial[i][0][0]; // xx
+      vatom[i][1] +=  atomic_virial[i][1][1]; // yy 
+      vatom[i][2] +=  atomic_virial[i][2][2]; // zz
+      vatom[i][3] +=  0.5*(atomic_virial[i][0][1]+atomic_virial[i][1][0]); // xy
+      vatom[i][4] +=  0.5*(atomic_virial[i][0][2]+atomic_virial[i][2][0]); // xz
+      vatom[i][5] +=  0.5*(atomic_virial[i][1][2]+atomic_virial[i][2][1]); // yz
+      //vatom[i][6] +=  atomic_virial[i][1][0]; // yx
+      //vatom[i][7] +=  atomic_virial[i][2][0]; // zx
+      //vatom[i][8] +=  atomic_virial[i][2][1]; // zy
+    }
+   } // Allow the use of the atomic viral. - Added by Hongyu Yu
+
 
   if(debug_mode){
     std::cout << "NequIP model output:\n";

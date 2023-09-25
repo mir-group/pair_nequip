@@ -23,6 +23,8 @@ PairStyle(nequip,PairNEQUIP)
 #include "pair.h"
 
 #include <torch/torch.h>
+#include <vector>
+#include <type_traits>
 
 namespace LAMMPS_NS {
 
