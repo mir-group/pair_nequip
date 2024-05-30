@@ -421,7 +421,6 @@ void PairNEQUIP::compute(int eflag, int vflag){
 
   torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
   auto atomic_energies = atomic_energy_tensor.accessor<double, 2>();
-  float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<double>()[0];
 
   if(vflag){
     torch::Tensor v_tensor = output.at("virial").toTensor().cpu();
@@ -447,11 +446,6 @@ void PairNEQUIP::compute(int eflag, int vflag){
     if(vflag) std::cout << "virial: " << output.at("virial").toTensor().cpu() << std::endl;
   }
 
-  //std::cout << "atomic energy sum: " << atomic_energy_sum << std::endl;
-  //std::cout << "Total energy: " << total_energy_tensor << "\n";
-  //std::cout << "atomic energy shape: " << atomic_energy_tensor.sizes()[0] << "," << atomic_energy_tensor.sizes()[1] << std::endl;
-  //std::cout << "atomic energies: " << atomic_energy_tensor << std::endl;
-
   // Write forces and per-atom energies (0-based tags here)
   for(int itag = 0; itag < inum; itag++){
     int i = tag2i[itag];
@@ -459,7 +453,6 @@ void PairNEQUIP::compute(int eflag, int vflag){
     f[i][1] = forces[itag][1];
     f[i][2] = forces[itag][2];
     if (eflag_atom) eatom[i] = atomic_energies[itag][0];
-    //printf("%d %d %g %g %g %g %g %g\n", i, type[i], pos[itag][0], pos[itag][1], pos[itag][2], f[i][0], f[i][1], f[i][2]);
   }
 
 
