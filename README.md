@@ -8,7 +8,7 @@ This pair style allows you to use NequIP models from the [`nequip`](https://gith
 
 ## Pre-requisites
 
-* PyTorch or LibTorch >= 1.10.0
+* PyTorch or LibTorch >= 1.11.0;  please note that at present we have only thoroughly tested 1.11 on NVIDIA GPUs (see [#311 for NequIP](https://github.com/mir-group/nequip/discussions/311#discussioncomment-5129513)) and 1.13 on AMD GPUs, but newer 2.x versions *may* also work. With newer versions, setting the environment variable `PYTORCH_JIT_USE_NNC_NOT_NVFUSER=1` sometimes helps.
 
 ## Usage in LAMMPS
 
@@ -18,21 +18,21 @@ pair_coeff	* * deployed.pth <type name 1> <type name 2> ...
 ```
 where `deployed.pth` is the filename of your trained, **deployed** model.
 
-The names after the model path `deployed.pth` indicate, in order, the names of the NequIP model's atom types to use for LAMMPS atom types 1, 2, and so on. The number of names given must be equal to the number of atom types in the LAMMPS configuration (not the NequIP model!). 
+The names after the model path `deployed.pth` indicate, in order, the names of the NequIP model's atom types to use for LAMMPS atom types 1, 2, and so on. The number of names given must be equal to the number of atom types in the LAMMPS configuration (not the NequIP model!).
 The given names must be consistent with the names specified in the NequIP training YAML in `chemical_symbol_to_type` or `type_names`.
 
 ## Building LAMMPS with this pair style
 
 ### Download LAMMPS
 ```bash
-git clone -b stable_29Sep2021_update2 --depth 1 git@github.com:lammps/lammps
+git clone --depth=1 https://github.com/lammps/lammps
 ```
 or your preferred method.
-(`--depth 1` prevents the entire history of the LAMMPS repository from being downloaded.)
+(`--depth=1` prevents the entire history of the LAMMPS repository from being downloaded.)
 
 ### Download this repository
 ```bash
-git clone git@github.com:mir-group/pair_nequip
+git clone https://github.com/mir-group/pair_nequip
 ```
 
 ### Patch LAMMPS
@@ -49,7 +49,6 @@ cp /path/to/pair_nequip/*.cpp /path/to/lammps/src/
 cp /path/to/pair_nequip/*.h /path/to/lammps/src/
 ```
 Then make the following modifications to `lammps/cmake/CMakeLists.txt`:
-- Change `set(CMAKE_CXX_STANDARD 11)` to `set(CMAKE_CXX_STANDARD 14)`
 - Append the following lines:
 ```cmake
 find_package(Torch REQUIRED)
@@ -106,6 +105,9 @@ This gives `lammps/build/lmp`, which can be run as usual with `/path/to/lmp -in 
    ```
 
    A: Make sure you remembered to deploy (compile) your model using `nequip-deploy`, and that the path to the model given with `pair_coeff` points to a deployed model `.pth` file, **not** a file containing only weights like `best_model.pth`.
-3. Q: The output pressures and stresses seem wrong / my NPT simulation is broken
+3. Q: I get the following error:
+    ```
+    Exception: Argument passed to at() was not in the map
+    ```
 
-    A: NPT/stress support in LAMMPS for `pair_nequip` is in-progress on the `stress` branch and is not yet finished. 
+    A: We now require models to have been trained with stress support, which is achieved by replacing `ForceOutput` with `StressForceOutput` in the training configuration. Note that you do not need to train on stress (though it may improve your potential, assuming your stress data is correct and converged). If you desperately wish to keep using a model without stress output, there are two options: 1) Remove lines that look like [these](https://github.com/mir-group/pair_allegro/blob/99036043e74376ac52993b5323f193dee3f4f401/pair_allegro_kokkos.cpp#L332-L343) in your version of `pair_allegro[_kokkos].cpp` 2) Redeploy the model with an updated config file, as described [here](https://github.com/mir-group/nequip/issues/69#issuecomment-1129273665).
