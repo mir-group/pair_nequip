@@ -1,14 +1,6 @@
 name: Run LAMMPS-Python tests
 
-on:
-  push:
-    branches:
-    - main
-    - develop
-
-  pull_request:
-    branches:
-    - main
+on: [push, pull_request]
 
 jobs:
   build:
@@ -17,7 +9,7 @@ jobs:
     strategy:
       matrix:
         python-version: [3.9]
-        torch-version: [1.10.1, 1.11.0]
+        torch-version: [1.11.0]
         nequip-branch: ["main"]
 
     steps:
@@ -46,7 +38,7 @@ jobs:
       run: |
         mkdir lammps_dir/
         cd lammps_dir/
-        git clone -b stable_29Sep2021_update2 --depth 1 "https://github.com/lammps/lammps"
+        git clone --depth 1 "https://github.com/lammps/lammps"
         cd ..
         ./patch_lammps.sh lammps_dir/lammps/
         cd lammps_dir/lammps/

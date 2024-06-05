@@ -38,27 +38,11 @@
 #include <torch/torch.h>
 #include <torch/script.h>
 #include <torch/csrc/jit/runtime/graph_executor.h>
-//#include <c10/cuda/CUDACachingAllocator.h>
 
-
-// We have to do a backward compatability hack for <1.10
-// https://discuss.pytorch.org/t/how-to-check-libtorch-version/77709/4
-// Basically, the check in torch::jit::freeze
-// (see https://github.com/pytorch/pytorch/blob/dfbd030854359207cb3040b864614affeace11ce/torch/csrc/jit/api/module.cpp#L479)
-// is wrong, and we have ro "reimplement" the function
-// to get around that...
-// it's broken in 1.8 and 1.9
-// BUT the internal logic in the function is wrong in 1.10
-// So we only use torch::jit::freeze in >=1.11
+// Freezing is broken from C++ in <=1.10; so we've dropped support.
 #if (TORCH_VERSION_MAJOR == 1 && TORCH_VERSION_MINOR <= 10)
-  #define DO_TORCH_FREEZE_HACK
-  // For the hack, need more headers:
-  #include <torch/csrc/jit/passes/freeze_module.h>
-  #include <torch/csrc/jit/passes/frozen_conv_add_relu_fusion.h>
-  #include <torch/csrc/jit/passes/frozen_graph_optimizations.h>
-  #include <torch/csrc/jit/passes/frozen_ops_to_mkldnn.h>
+#error "PyTorch version < 1.11 is not supported"
 #endif
-
 
 using namespace LAMMPS_NS;
 
@@ -92,13 +76,7 @@ void PairNEQUIP::init_style(){
   if (atom->tag_enable == 0)
     error->all(FLERR,"Pair style NEQUIP requires atom IDs");
 
-  // need a full neighbor list
-  int irequest = neighbor->request(this,instance_me);
-  neighbor->requests[irequest]->half = 0;
-  neighbor->requests[irequest]->full = 1;
-
-  // TODO: probably also
-  neighbor->requests[irequest]->ghost = 0;
+  neighbor->add_request(this, NeighConst::REQ_FULL);
 
   // TODO: I think Newton should be off, enforce this.
   // The network should just directly compute the total forces
@@ -125,7 +103,7 @@ void PairNEQUIP::allocate()
 }
 
 void PairNEQUIP::settings(int narg, char ** /*arg*/) {
-  // "flare" should be the only word after "pair_style" in the input file.
+  // "nequip" should be the only word after "pair_style" in the input file.
   if (narg > 0)
     error->all(FLERR, "Illegal pair_style command");
 }
@@ -186,52 +164,23 @@ void PairNEQUIP::coeff(int narg, char **arg) {
   // This is the check used by PyTorch: https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/api/module.cpp#L476
   if (model.hasattr("training")) {
     std::cout << "Freezing TorchScript model...\n";
-    #ifdef DO_TORCH_FREEZE_HACK
-      // Do the hack
-      // Copied from the implementation of torch::jit::freeze,
-      // except without the broken check
-      // See https://github.com/pytorch/pytorch/blob/dfbd030854359207cb3040b864614affeace11ce/torch/csrc/jit/api/module.cpp
-      bool optimize_numerics = true;  // the default
-      // the {} is preserved_attrs
-      auto out_mod = freeze_module(
-        model, {}
-      );
-      // See 1.11 bugfix in https://github.com/pytorch/pytorch/pull/71436
-      auto graph = out_mod.get_method("forward").graph();
-      OptimizeFrozenGraph(graph, optimize_numerics);
-      model = out_mod;
-    #else
-      // Do it normally
-      model = torch::jit::freeze(model);
-    #endif
+    model = torch::jit::freeze(model);
   }
 
-  #if (TORCH_VERSION_MAJOR == 1 && TORCH_VERSION_MINOR <= 10)
-    // Set JIT bailout to avoid long recompilations for many steps
-    size_t jit_bailout_depth;
-    if (metadata["_jit_bailout_depth"].empty()) {
-      // This is the default used in the Python code
-      jit_bailout_depth = 2;
-    } else {
-      jit_bailout_depth = std::stoi(metadata["_jit_bailout_depth"]);
+  // In PyTorch >=1.11, this is now set_fusion_strategy
+  torch::jit::FusionStrategy strategy;
+  if (metadata["_jit_fusion_strategy"].empty()) {
+    // This is the default used in the Python code
+    strategy = {{torch::jit::FusionBehavior::DYNAMIC, 3}};
+  } else {
+    std::stringstream strat_stream(metadata["_jit_fusion_strategy"]);
+    std::string fusion_type, fusion_depth;
+    while(std::getline(strat_stream, fusion_type, ',')) {
+      std::getline(strat_stream, fusion_depth, ';');
+      strategy.push_back({fusion_type == "STATIC" ? torch::jit::FusionBehavior::STATIC : torch::jit::FusionBehavior::DYNAMIC, std::stoi(fusion_depth)});
     }
-    torch::jit::getBailoutDepth() = jit_bailout_depth;
-  #else
-    // In PyTorch >=1.11, this is now set_fusion_strategy
-    torch::jit::FusionStrategy strategy;
-    if (metadata["_jit_fusion_strategy"].empty()) {
-      // This is the default used in the Python code
-      strategy = {{torch::jit::FusionBehavior::DYNAMIC, 3}};
-    } else {
-      std::stringstream strat_stream(metadata["_jit_fusion_strategy"]);
-      std::string fusion_type, fusion_depth;
-      while(std::getline(strat_stream, fusion_type, ',')) {
-        std::getline(strat_stream, fusion_depth, ';');
-        strategy.push_back({fusion_type == "STATIC" ? torch::jit::FusionBehavior::STATIC : torch::jit::FusionBehavior::DYNAMIC, std::stoi(fusion_depth)});
-      }
-    }
-    torch::jit::setFusionStrategy(strategy);
-  #endif
+  }
+  torch::jit::setFusionStrategy(strategy);
 
   // Set whether to allow TF32:
   bool allow_tf32;
@@ -463,28 +412,39 @@ void PairNEQUIP::compute(int eflag, int vflag){
   auto output = model.forward(input_vector).toGenericDict();
 
   torch::Tensor forces_tensor = output.at("forces").toTensor().cpu();
-  auto forces = forces_tensor.accessor<float, 2>();
+  auto forces = forces_tensor.accessor<double, 2>();
 
   torch::Tensor total_energy_tensor = output.at("total_energy").toTensor().cpu();
 
   // store the total energy where LAMMPS wants it
-  eng_vdwl = total_energy_tensor.data_ptr<float>()[0];
+  eng_vdwl = total_energy_tensor.data_ptr<double>()[0];
 
   torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
-  auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
-  float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
+  auto atomic_energies = atomic_energy_tensor.accessor<double, 2>();
+
+  if(vflag){
+    torch::Tensor v_tensor = output.at("virial").toTensor().cpu();
+    auto v = v_tensor.accessor<double, 3>();
+    // Convert from 3x3 symmetric tensor format, which NequIP outputs, to the flattened form LAMMPS expects
+    // First [0] index on v is batch
+    virial[0] = v[0][0][0];
+    virial[1] = v[0][1][1];
+    virial[2] = v[0][2][2];
+    virial[3] = v[0][0][1];
+    virial[4] = v[0][0][2];
+    virial[5] = v[0][1][2];
+  }
+  if(vflag_atom) {
+    error->all(FLERR,"Pair style NEQUIP does not support per-atom virial");
+  }
 
   if(debug_mode){
     std::cout << "NequIP model output:\n";
     std::cout << "forces: " << forces_tensor << "\n";
     std::cout << "total_energy: " << total_energy_tensor << "\n";
     std::cout << "atomic_energy: " << atomic_energy_tensor << "\n";
+    if(vflag) std::cout << "virial: " << output.at("virial").toTensor().cpu() << std::endl;
   }
-
-  //std::cout << "atomic energy sum: " << atomic_energy_sum << std::endl;
-  //std::cout << "Total energy: " << total_energy_tensor << "\n";
-  //std::cout << "atomic energy shape: " << atomic_energy_tensor.sizes()[0] << "," << atomic_energy_tensor.sizes()[1] << std::endl;
-  //std::cout << "atomic energies: " << atomic_energy_tensor << std::endl;
 
   // Write forces and per-atom energies (0-based tags here)
   for(int itag = 0; itag < inum; itag++){
@@ -493,10 +453,8 @@ void PairNEQUIP::compute(int eflag, int vflag){
     f[i][1] = forces[itag][1];
     f[i][2] = forces[itag][2];
     if (eflag_atom) eatom[i] = atomic_energies[itag][0];
-    //printf("%d %d %g %g %g %g %g %g\n", i, type[i], pos[itag][0], pos[itag][1], pos[itag][2], f[i][0], f[i][1], f[i][2]);
   }
 
-  // TODO: Virial stuff? (If there even is a pairwise force concept here)
 
   // TODO: Performance: Depending on how the graph network works, using tags for edges may lead to shitty memory access patterns and performance.
   // It may be better to first create tag2i as a separate loop, then set edges[edge_counter][:] = (i, tag2i[jtag]).
