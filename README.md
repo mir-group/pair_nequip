@@ -1,3 +1,6 @@
+> [!CAUTION]
+> :red_circle: Please note that this `pair_nequip` repository is **deprecated**: for versions of the `nequip` framework v0.7.0 and later, `pair_style nequip` can be found in the [`pair_nequip_allegro`](https://github.com/mir-group/pair_nequip_allegro) repository. :red_circle:
+
 # LAMMPS pair style for NequIP
 
 This pair style allows you to use NequIP models from the [`nequip`](https://github.com/mir-group/nequip) framework in LAMMPS simulations. For more details on NequIP and the Python code, please visit the [`nequip`](https://github.com/mir-group/nequip) repository.
